@@ -310,7 +310,15 @@ namespace GemmaHackathon.SimulationFramework
                 return false;
             }
 
-            result = handler.Execute(call) ?? SimulationToolResult.CreateError(call.Name, "Tool returned no result.");
+            try
+            {
+                result = handler.Execute(call) ?? SimulationToolResult.CreateError(call.Name, "Tool returned no result.");
+            }
+            catch (Exception ex)
+            {
+                result = SimulationToolResult.CreateError(call.Name, ex.Message);
+            }
+
             return !result.IsError;
         }
 

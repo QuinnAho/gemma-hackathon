@@ -19,8 +19,3 @@ The focus is:
 - Unity + Quest 3
 - reusable simulation framework
 - one strong example use case
-
-## Local Assets
-
-Local generated assets and machine-specific paths are kept out of source control by contract.
-See [docs/local-assets.md](/D:/ahoqp1/Repositories/gemma-hackathon/docs/local-assets.md) for the staging layout, local config file, plugin staging flow, and clean-repo verification step.

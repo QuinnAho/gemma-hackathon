@@ -2,7 +2,20 @@ using System;
 
 namespace GemmaHackathon.SimulationFramework
 {
-    public sealed class CactusModel : IDisposable
+    public interface ISimulationCompletionModel
+    {
+        void Reset();
+
+        string CompleteJson(
+            string messagesJson,
+            string optionsJson = null,
+            string toolsJson = null,
+            Action<string, uint> tokenCallback = null,
+            byte[] pcm16Mono = null,
+            int responseBufferBytes = CactusNative.DefaultJsonBufferSize);
+    }
+
+    public sealed class CactusModel : ISimulationCompletionModel, IDisposable
     {
         private IntPtr _handle;
 

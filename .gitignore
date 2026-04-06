@@ -21,6 +21,15 @@ pip-wheel-metadata/
 .coverage.*
 htmlcov/
 
+# Local staging and machine-specific config
+.local/
+config/local.json
+
+# Local planning and agent notes
+AGENTS.md
+CLAUDE.md
+TO-DO.md
+
 # Editor and OS files
 .vscode/
 .idea/

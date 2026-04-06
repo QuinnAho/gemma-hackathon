@@ -31,3 +31,7 @@ ExportedObj/
 
 # Unity diagnostics
 sysinfo.txt
+
+# Locally staged native plugin
+Assets/Plugins/Android/arm64-v8a/libcactus.so
+Assets/Plugins/Android/arm64-v8a/libcactus.so.meta

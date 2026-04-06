@@ -1,0 +1,7 @@
+transformers
+torch
+accelerate
+sentencepiece
+huggingface_hub
+pillow
+torchvision

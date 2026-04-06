@@ -21,34 +21,10 @@ The system is split into a few layers:
 5. Submission polish
    Demo, benchmarks, documentation, and packaging.
 
-## High-Level Flow
-
-1. Unity captures simulation state.
-2. Unity captures trainee speech.
-3. Cactus transcribes speech locally.
-4. Gemma receives state, user input, and available tools.
-5. Gemma responds and optionally calls simulation functions.
-6. Unity executes those functions and updates the simulation.
-7. The trainee sees the updated world and AI feedback.
-
-## Build Order
-
-1. Prove Quest 3 native inference works.
-2. Build the reusable framework layer.
-3. Connect the voice pipeline.
-4. Implement one complete scenario on top.
-5. Test, optimize, and package the demo.
-
-## Scope Discipline
+## Scope
 
 The focus is:
 - on-device AI
 - Unity + Quest 3
 - reusable simulation framework
 - one strong example use case
-
-The focus is not:
-- cloud-first inference
-- multiple scenarios
-- complex avatar/TTS systems
-- unnecessary polish before the core loop works

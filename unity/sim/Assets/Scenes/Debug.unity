@@ -340,6 +340,10 @@ MonoBehaviour:
   _createOverlayIfMissing: 1
   _overlayVisible: 1
   _defaultCustomInput: Trainee completed the first action.
+  _runtimeMode: 1
+  _localModelPathOverride: 
+  _localModelRelativePath: gemma-4-e2b
+  _telemetryCachePathOverride: 
 --- !u!4 &1619133126
 Transform:
   m_ObjectHideFlags: 0

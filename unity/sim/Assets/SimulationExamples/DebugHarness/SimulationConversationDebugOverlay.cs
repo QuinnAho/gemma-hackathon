@@ -98,6 +98,16 @@ namespace GemmaHackathon.SimulationExamples
             GUI.color = previousColor;
 
             GUILayout.Space(8f);
+            GUILayout.Label("Runtime", _headerStyle);
+            GUILayout.Label("Active Backend: " + SafeValue(_manager.ActiveBackendName), _bodyStyle);
+            GUILayout.Label(_manager.RuntimeSummary, _bodyStyle);
+            GUILayout.Label(
+                _manager.RuntimeCapabilities.IsTargetRuntime
+                    ? "Runtime Type: Target runtime"
+                    : "Runtime Type: Editor validation path",
+                _bodyStyle);
+
+            GUILayout.Space(8f);
             GUILayout.Label("Example Actions", _headerStyle);
 
             if (GUILayout.Button("Simulate Good Step"))
@@ -135,6 +145,20 @@ namespace GemmaHackathon.SimulationExamples
             }
 
             GUILayout.Space(8f);
+            GUILayout.Label("Voice Input", _headerStyle);
+            var previousEnabledState = GUI.enabled;
+            GUI.enabled = _manager.RuntimeCapabilities.SupportsSpeechTranscription;
+            GUILayout.Button("Voice Input Available");
+            GUI.enabled = previousEnabledState;
+
+            if (!_manager.RuntimeCapabilities.SupportsSpeechTranscription)
+            {
+                GUILayout.Label(
+                    "Voice input is intentionally disabled here. Speech transcription is part of the Quest Cactus runtime path, not the editor validation path.",
+                    _bodyStyle);
+            }
+
+            GUILayout.Space(8f);
             GUILayout.Label("Reset", _headerStyle);
 
             if (GUILayout.Button("Start Fresh"))
@@ -150,6 +174,9 @@ namespace GemmaHackathon.SimulationExamples
             _stateScroll = GUILayout.BeginScrollView(_stateScroll);
 
             GUILayout.Label("Live Summary", _headerStyle);
+            GUILayout.Label("Runtime Backend: " + SafeValue(_manager.ActiveBackendName), _bodyStyle);
+            GUILayout.Label("Uses Live Model: " + (_manager.RuntimeCapabilities.UsesLiveModel ? "yes" : "no"), _bodyStyle);
+            GUILayout.Label("Supports Speech Input: " + (_manager.RuntimeCapabilities.SupportsSpeechTranscription ? "yes" : "no"), _bodyStyle);
             GUILayout.Label("Scenario Stage: " + _manager.CurrentPhase, _bodyStyle);
             GUILayout.Label("Performance Score: " + _manager.CurrentScore.ToString(CultureInfo.InvariantCulture), _bodyStyle);
             GUILayout.Label("Time Running: " + _manager.ElapsedSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "s", _bodyStyle);
@@ -157,6 +184,18 @@ namespace GemmaHackathon.SimulationExamples
             GUILayout.Label("Latest Scenario Change: " + SafeValue(_manager.LastEvent), _bodyStyle);
             GUILayout.Label("Latest System Action: " + SafeValue(_manager.LastDecision), _bodyStyle);
             GUILayout.Label("Latest AI Reply: " + SafeValue(_manager.LastAssistantResponse), _bodyStyle);
+
+            var bootstrapStatus = _manager.BootstrapStatus;
+            if (bootstrapStatus != null && bootstrapStatus.State != GemmaHackathon.SimulationFramework.SimulationRuntimeBootstrapState.Uninitialized)
+            {
+                GUILayout.Space(8f);
+                GUILayout.Label("Runtime Health", _headerStyle);
+                GUILayout.Label("State: " + bootstrapStatus.State, _bodyStyle);
+                GUILayout.Label("Model Path: " + SafeValue(bootstrapStatus.ResolvedModelPath), _bodyStyle);
+                GUILayout.Label("Path Source: " + SafeValue(bootstrapStatus.ModelPathSource), _bodyStyle);
+                GUILayout.Label("Health Check: " + SafeValue(bootstrapStatus.HealthCheckResponse), _bodyStyle);
+                GUILayout.Label("Runtime Error: " + SafeValue(bootstrapStatus.Error), _bodyStyle);
+            }
 
             GUILayout.Space(8f);
             GUILayout.Label("Progress Signals", _headerStyle);
@@ -267,6 +306,12 @@ namespace GemmaHackathon.SimulationExamples
                     return "moved scenario forward";
                 case "log_decision":
                     return "recorded decision";
+                case "runtime_ready":
+                    return "connected runtime";
+                case "runtime_fallback":
+                    return "switched to scripted mode";
+                case "runtime_error":
+                    return "failed to start runtime";
                 case "error":
                     return "reported issue";
                 default:

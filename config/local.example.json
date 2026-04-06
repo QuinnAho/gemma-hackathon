@@ -2,7 +2,10 @@
   "stagingRoot": ".local",
   "paths": {
     "cactusAndroidPluginSource": ".local/native/cactus/android/arm64-v8a/libcactus.so",
+    "desktopPythonExecutable": ".venv\\Scripts\\python.exe",
+    "desktopGemmaTransformersModel": "google/gemma-4-E2B-it",
     "desktopModelsRoot": ".local/models",
+    "desktopCactusModelPath": ".local/models/gemma-4-e2b",
     "telemetryRoot": ".local/logs/telemetry",
     "benchmarkRoot": ".local/benchmarks",
     "audioFixturesRoot": ".local/audio/fixtures",

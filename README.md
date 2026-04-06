@@ -2,6 +2,8 @@
 
 This project is building a reusable, on-device, simulation-aware AI framework for Quest 3.
 
+Editor and desktop validation should use Desktop Gemma. Quest remains the target runtime and should use Cactus for completion and speech.
+
 ## What We're Building
 
 The system is split into a few layers:

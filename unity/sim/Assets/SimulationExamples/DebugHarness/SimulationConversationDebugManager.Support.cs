@@ -9,7 +9,7 @@ namespace GemmaHackathon.SimulationExamples
 {
     public sealed partial class SimulationConversationDebugManager
     {
-        private sealed class ConversationDebugState
+        private sealed class ExampleScenarioState
         {
             public string Phase = "discovery";
             public int Score;
@@ -20,7 +20,7 @@ namespace GemmaHackathon.SimulationExamples
             public readonly List<SimulationChecklistItem> Checklist = new List<SimulationChecklistItem>();
             public readonly List<SimulationActionRecord> Actions = new List<SimulationActionRecord>();
 
-            public ConversationDebugState()
+            public ExampleScenarioState()
             {
                 Checklist.Add(new SimulationChecklistItem
                 {
@@ -79,12 +79,12 @@ namespace GemmaHackathon.SimulationExamples
             }
         }
 
-        private sealed class DebugStateProvider : ISimulationStateProvider
+        private sealed class ExampleScenarioStateProvider : ISimulationStateProvider
         {
-            private readonly ConversationDebugState _state;
+            private readonly ExampleScenarioState _state;
             private readonly Func<float> _clock;
 
-            public DebugStateProvider(ConversationDebugState state, Func<float> clock)
+            public ExampleScenarioStateProvider(ExampleScenarioState state, Func<float> clock)
             {
                 _state = state;
                 _clock = clock;
@@ -152,11 +152,11 @@ namespace GemmaHackathon.SimulationExamples
             }
         }
 
-        private sealed class DebugCompletionModel : ISimulationCompletionModel
+        private sealed class ScriptedScenarioCompletionModel : ISimulationCompletionModel
         {
-            private readonly ConversationDebugState _state;
+            private readonly ExampleScenarioState _state;
 
-            public DebugCompletionModel(ConversationDebugState state)
+            public ScriptedScenarioCompletionModel(ExampleScenarioState state)
             {
                 _state = state;
             }
@@ -304,10 +304,10 @@ namespace GemmaHackathon.SimulationExamples
 
         private sealed class UpdateScoreTool : ISimulationToolHandler
         {
-            private readonly ConversationDebugState _state;
+            private readonly ExampleScenarioState _state;
             private readonly Func<float> _clock;
 
-            public UpdateScoreTool(ConversationDebugState state, Func<float> clock)
+            public UpdateScoreTool(ExampleScenarioState state, Func<float> clock)
             {
                 _state = state;
                 _clock = clock;
@@ -343,10 +343,10 @@ namespace GemmaHackathon.SimulationExamples
 
         private sealed class AdvancePhaseTool : ISimulationToolHandler
         {
-            private readonly ConversationDebugState _state;
+            private readonly ExampleScenarioState _state;
             private readonly Func<float> _clock;
 
-            public AdvancePhaseTool(ConversationDebugState state, Func<float> clock)
+            public AdvancePhaseTool(ExampleScenarioState state, Func<float> clock)
             {
                 _state = state;
                 _clock = clock;
@@ -381,10 +381,10 @@ namespace GemmaHackathon.SimulationExamples
 
         private sealed class LogDecisionTool : ISimulationToolHandler
         {
-            private readonly ConversationDebugState _state;
+            private readonly ExampleScenarioState _state;
             private readonly Func<float> _clock;
 
-            public LogDecisionTool(ConversationDebugState state, Func<float> clock)
+            public LogDecisionTool(ExampleScenarioState state, Func<float> clock)
             {
                 _state = state;
                 _clock = clock;

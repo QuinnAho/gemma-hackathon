@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 namespace GemmaHackathon.SimulationFramework
 {
@@ -88,10 +89,30 @@ namespace GemmaHackathon.SimulationFramework
         internal static InvalidOperationException CreatePluginLoadException(Exception innerException)
         {
             return new InvalidOperationException(
-                "Cactus native plugin could not be loaded. Build `libcactus.so` with `cactus build --android` and place it at `" +
-                AndroidPluginPath +
-                "`.",
+                "Cactus native plugin could not be loaded. " + DescribeExpectedPluginLocation(),
                 innerException);
+        }
+
+        internal static string DescribeExpectedPluginLocation()
+        {
+            switch (Application.platform)
+            {
+                case RuntimePlatform.Android:
+                    return "Build `libcactus.so` with `cactus build --android` and place it at `" +
+                           AndroidPluginPath +
+                           "`.";
+                case RuntimePlatform.WindowsEditor:
+                case RuntimePlatform.WindowsPlayer:
+                    return "Place a Windows native plugin named `cactus.dll` in Unity's native plugin search path, for example `Assets/Plugins/x86_64/`.";
+                case RuntimePlatform.OSXEditor:
+                case RuntimePlatform.OSXPlayer:
+                    return "Place a macOS native plugin named `libcactus.dylib` or `cactus.bundle` in Unity's native plugin search path.";
+                case RuntimePlatform.LinuxEditor:
+                case RuntimePlatform.LinuxPlayer:
+                    return "Place a Linux native plugin named `libcactus.so` in Unity's native plugin search path.";
+                default:
+                    return "Place the native library for `cactus` in Unity's native plugin search path for the current platform.";
+            }
         }
 
         private static void ForwardLogMessage(int level, IntPtr component, IntPtr message, IntPtr userData)

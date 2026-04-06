@@ -4,10 +4,39 @@ using UnityEngine;
 
 namespace GemmaHackathon.SimulationExamples
 {
-    public sealed partial class SimulationConversationDebugHarness
+    [AddComponentMenu("Gemma Hackathon/Debug Harness/Simulation Conversation Debug Overlay")]
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(SimulationConversationDebugManager))]
+    public sealed class SimulationConversationDebugOverlay : MonoBehaviour
     {
+        private const float Padding = 16f;
+        private const float HeaderHeight = 28f;
+
+        private SimulationConversationDebugManager _manager;
+        private Vector2 _controlsScroll;
+        private Vector2 _stateScroll;
+        private Vector2 _historyScroll;
+        private Vector2 _traceScroll;
+        private GUIStyle _headerStyle;
+        private GUIStyle _bodyStyle;
+
+        private void Awake()
+        {
+            _manager = GetComponent<SimulationConversationDebugManager>();
+        }
+
         private void OnGUI()
         {
+            if (_manager == null)
+            {
+                _manager = GetComponent<SimulationConversationDebugManager>();
+            }
+
+            if (_manager == null || !_manager.OverlayVisible)
+            {
+                return;
+            }
+
             EnsureStyles();
 
             var contentWidth = Screen.width - (Padding * 4f);
@@ -59,10 +88,13 @@ namespace GemmaHackathon.SimulationExamples
 
             GUILayout.Space(8f);
             GUILayout.Label("Current Status", _headerStyle);
-            var statusColor = _lastTurnResult != null && _lastTurnResult.Success ? Color.green : new Color(1f, 0.45f, 0.3f);
+            var lastTurnResult = _manager.LastTurnResult;
+            var statusColor = lastTurnResult != null && lastTurnResult.Success
+                ? Color.green
+                : new Color(1f, 0.45f, 0.3f);
             var previousColor = GUI.color;
             GUI.color = statusColor;
-            GUILayout.Box(BuildStatusText(), GUILayout.ExpandWidth(true));
+            GUILayout.Box(_manager.StatusText, GUILayout.ExpandWidth(true));
             GUI.color = previousColor;
 
             GUILayout.Space(8f);
@@ -70,36 +102,36 @@ namespace GemmaHackathon.SimulationExamples
 
             if (GUILayout.Button("Simulate Good Step"))
             {
-                RunUserTurn("Trainee completed the first action.");
+                _manager.RunUserTurn("Trainee completed the first action.");
             }
 
             if (GUILayout.Button("Move Scenario Forward"))
             {
-                RunUserTurn("Advance the scenario to the next phase.");
+                _manager.RunUserTurn("Advance the scenario to the next phase.");
             }
 
             if (GUILayout.Button("Simulate Wrong Step"))
             {
-                RunUserTurn("The trainee made a mistake, apply a penalty.");
+                _manager.RunUserTurn("The trainee made a mistake, apply a penalty.");
             }
 
             if (GUILayout.Button("Ask For Summary"))
             {
-                RunUserTurn("Give me a quick status summary.");
+                _manager.RunUserTurn("Give me a quick status summary.");
             }
 
             if (GUILayout.Button("Trigger Scenario Change"))
             {
-                RunEventTurn("Unexpected simulation event triggered.");
+                _manager.RunEventTurn("Unexpected simulation event triggered.");
             }
 
             GUILayout.Space(8f);
             GUILayout.Label("Custom Prompt", _headerStyle);
-            _customInput = GUILayout.TextField(_customInput ?? string.Empty);
+            _manager.CustomInput = GUILayout.TextField(_manager.CustomInput ?? string.Empty);
 
             if (GUILayout.Button("Send To AI"))
             {
-                RunUserTurn(_customInput);
+                _manager.RunUserTurn(_manager.CustomInput);
             }
 
             GUILayout.Space(8f);
@@ -107,14 +139,7 @@ namespace GemmaHackathon.SimulationExamples
 
             if (GUILayout.Button("Start Fresh"))
             {
-                _manager.ClearHistory();
-                _traceEntries.Clear();
-                _state.ResetForNewSession();
-                _lastTurnResult = new GemmaHackathon.SimulationFramework.SimulationConversationTurnResult();
-                _lastTurnResult.Success = true;
-                _lastTurnResult.FinalAssistantResponse = "New session started.";
-                _state.LastAssistantResponse = _lastTurnResult.FinalAssistantResponse;
-                _state.AddAction("system", "reset", "Conversation history cleared.", GetElapsedSeconds());
+                _manager.ResetSession();
             }
 
             GUILayout.EndScrollView();
@@ -125,28 +150,28 @@ namespace GemmaHackathon.SimulationExamples
             _stateScroll = GUILayout.BeginScrollView(_stateScroll);
 
             GUILayout.Label("Live Summary", _headerStyle);
-            GUILayout.Label("Scenario Stage: " + _state.Phase, _bodyStyle);
-            GUILayout.Label("Performance Score: " + _state.Score.ToString(CultureInfo.InvariantCulture), _bodyStyle);
-            GUILayout.Label("Time Running: " + GetElapsedSeconds().ToString("0.0", CultureInfo.InvariantCulture) + "s", _bodyStyle);
-            GUILayout.Label("Latest Trainee Input: " + SafeValue(_state.LastUserInput), _bodyStyle);
-            GUILayout.Label("Latest Scenario Change: " + SafeValue(_state.LastEvent), _bodyStyle);
-            GUILayout.Label("Latest System Action: " + SafeValue(_state.LastDecision), _bodyStyle);
-            GUILayout.Label("Latest AI Reply: " + SafeValue(_state.LastAssistantResponse), _bodyStyle);
+            GUILayout.Label("Scenario Stage: " + _manager.CurrentPhase, _bodyStyle);
+            GUILayout.Label("Performance Score: " + _manager.CurrentScore.ToString(CultureInfo.InvariantCulture), _bodyStyle);
+            GUILayout.Label("Time Running: " + _manager.ElapsedSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "s", _bodyStyle);
+            GUILayout.Label("Latest Trainee Input: " + SafeValue(_manager.LastUserInput), _bodyStyle);
+            GUILayout.Label("Latest Scenario Change: " + SafeValue(_manager.LastEvent), _bodyStyle);
+            GUILayout.Label("Latest System Action: " + SafeValue(_manager.LastDecision), _bodyStyle);
+            GUILayout.Label("Latest AI Reply: " + SafeValue(_manager.LastAssistantResponse), _bodyStyle);
 
             GUILayout.Space(8f);
             GUILayout.Label("Progress Signals", _headerStyle);
-            for (var i = 0; i < _state.Checklist.Count; i++)
+            for (var i = 0; i < _manager.Checklist.Count; i++)
             {
-                var item = _state.Checklist[i];
+                var item = _manager.Checklist[i];
                 var prefix = item.Completed ? "[x] " : "[ ] ";
                 GUILayout.Label(prefix + item.Label + " - " + SafeValue(item.Notes), _bodyStyle);
             }
 
             GUILayout.Space(8f);
             GUILayout.Label("Recent Activity", _headerStyle);
-            for (var i = 0; i < _state.Actions.Count; i++)
+            for (var i = 0; i < _manager.Actions.Count; i++)
             {
-                var action = _state.Actions[i];
+                var action = _manager.Actions[i];
                 GUILayout.Label(
                     action.OccurredAtSeconds.ToString("0.0", CultureInfo.InvariantCulture) +
                     "s | " +
@@ -160,15 +185,15 @@ namespace GemmaHackathon.SimulationExamples
 
             GUILayout.Space(8f);
             GUILayout.Label("Latest Outcome", _headerStyle);
-            if (_lastTurnResult != null)
+            if (_manager.LastTurnResult != null)
             {
-                GUILayout.Label("Completed: " + (_lastTurnResult.Success ? "yes" : "no"), _bodyStyle);
-                GUILayout.Label("Final Reply: " + SafeValue(_lastTurnResult.FinalAssistantResponse), _bodyStyle);
-                GUILayout.Label("Issue: " + SafeValue(_lastTurnResult.Error), _bodyStyle);
+                GUILayout.Label("Completed: " + (_manager.LastTurnResult.Success ? "yes" : "no"), _bodyStyle);
+                GUILayout.Label("Final Reply: " + SafeValue(_manager.LastTurnResult.FinalAssistantResponse), _bodyStyle);
+                GUILayout.Label("Issue: " + SafeValue(_manager.LastTurnResult.Error), _bodyStyle);
 
-                for (var i = 0; i < _lastTurnResult.ToolResults.Count; i++)
+                for (var i = 0; i < _manager.LastTurnResult.ToolResults.Count; i++)
                 {
-                    var toolResult = _lastTurnResult.ToolResults[i];
+                    var toolResult = _manager.LastTurnResult.ToolResults[i];
                     GUILayout.Label(
                         "System Action " +
                         toolResult.Name +
@@ -200,9 +225,9 @@ namespace GemmaHackathon.SimulationExamples
             GUILayout.Label("Behind The Scenes", _headerStyle);
             _traceScroll = GUILayout.BeginScrollView(_traceScroll);
 
-            for (var i = 0; i < _traceEntries.Count; i++)
+            for (var i = 0; i < _manager.TraceEntries.Count; i++)
             {
-                var entry = _traceEntries[i];
+                var entry = _manager.TraceEntries[i];
                 GUILayout.Label(
                     entry.TimestampUtc + " | " + DescribeTraceKind(entry.Kind) + " | " + SafeValue(entry.Content),
                     _bodyStyle);
@@ -289,6 +314,28 @@ namespace GemmaHackathon.SimulationExamples
                 default:
                     return kind.ToString();
             }
+        }
+
+        private void EnsureStyles()
+        {
+            if (_headerStyle != null)
+            {
+                return;
+            }
+
+            _headerStyle = new GUIStyle(GUI.skin.label);
+            _headerStyle.fontStyle = FontStyle.Bold;
+            _headerStyle.fontSize = 13;
+            _headerStyle.wordWrap = true;
+
+            _bodyStyle = new GUIStyle(GUI.skin.label);
+            _bodyStyle.wordWrap = true;
+            _bodyStyle.fontSize = 11;
+        }
+
+        private static string SafeValue(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "(none)" : value;
         }
     }
 }

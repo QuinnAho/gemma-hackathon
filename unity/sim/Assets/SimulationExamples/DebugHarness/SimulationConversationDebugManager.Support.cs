@@ -7,7 +7,7 @@ using GemmaHackathon.SimulationFramework;
 
 namespace GemmaHackathon.SimulationExamples
 {
-    public sealed partial class SimulationConversationDebugHarness
+    public sealed partial class SimulationConversationDebugManager
     {
         private sealed class ConversationDebugState
         {

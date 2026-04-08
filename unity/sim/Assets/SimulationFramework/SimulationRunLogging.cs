@@ -305,6 +305,8 @@ namespace GemmaHackathon.SimulationFramework
         public bool ReachedToolRoundTripLimit;
         public string FinalAssistantResponse = string.Empty;
         public string Error = string.Empty;
+        public int CompletionCount;
+        public double TotalCompletionTimeMs;
         public int AssistantResponseCount;
         public int ToolResultCount;
 
@@ -323,6 +325,10 @@ namespace GemmaHackathon.SimulationFramework
             SimulationRunJson.AppendBoolProperty(builder, "reached_tool_round_trip_limit", ReachedToolRoundTripLimit);
             builder.Append(',');
             JsonText.AppendStringProperty(builder, "error", Error);
+            builder.Append(',');
+            SimulationRunJson.AppendIntProperty(builder, "completion_count", CompletionCount);
+            builder.Append(',');
+            SimulationRunJson.AppendNullableDoubleProperty(builder, "total_completion_time_ms", TotalCompletionTimeMs);
             builder.Append(',');
             SimulationRunJson.AppendIntProperty(builder, "assistant_response_count", AssistantResponseCount);
             builder.Append(',');

@@ -1,9 +1,10 @@
 using System;
 using System.Globalization;
 using GemmaHackathon.SimulationFramework;
+using GemmaHackathon.SimulationScenarios.SvrFire;
 using UnityEngine;
 
-namespace GemmaHackathon.SimulationExamples
+namespace GemmaHackathon.SimulationTooling.DebugHarness
 {
     [AddComponentMenu("Gemma Hackathon/Debug Harness/Simulation Conversation Debug Overlay")]
     [DisallowMultipleComponent]
@@ -133,29 +134,34 @@ namespace GemmaHackathon.SimulationExamples
             var previousEnabledState = GUI.enabled;
             GUI.enabled = !isBusy;
 
-            if (GUILayout.Button("Apply Good Step"))
+            if (GUILayout.Button("Trigger Alarm Escalation"))
             {
-                _manager.RunUserTurn("Trainee completed the first action.");
+                _manager.RunEventTurn("Routine office activity has escalated into an active fire alarm.");
             }
 
-            if (GUILayout.Button("Advance Phase"))
+            if (GUILayout.Button("Acknowledge Alarm"))
             {
-                _manager.RunUserTurn("Advance the scenario to the next phase.");
+                _manager.RunParticipantAction(SvrFireScenarioValues.ActionAcknowledgeAlarm);
             }
 
-            if (GUILayout.Button("Apply Penalty"))
+            if (GUILayout.Button("Move To Exit A"))
             {
-                _manager.RunUserTurn("The trainee made a mistake, apply a penalty.");
+                _manager.RunParticipantAction(SvrFireScenarioValues.ActionMoveExitA);
             }
 
-            if (GUILayout.Button("Request Summary"))
+            if (GUILayout.Button("Move To Exit B"))
             {
-                _manager.RunUserTurn("Give me a quick status summary.");
+                _manager.RunParticipantAction(SvrFireScenarioValues.ActionMoveExitB);
             }
 
-            if (GUILayout.Button("Inject Scenario Event"))
+            if (GUILayout.Button("Help Coworker"))
             {
-                _manager.RunEventTurn("Unexpected simulation event triggered.");
+                _manager.RunParticipantAction(SvrFireScenarioValues.ActionHelpCoworker);
+            }
+
+            if (GUILayout.Button("Request Readiness Summary"))
+            {
+                _manager.RunUserTurn("Give me the current fire readiness summary.");
             }
 
             GUILayout.Space(8f);
@@ -247,10 +253,16 @@ namespace GemmaHackathon.SimulationExamples
             GUILayout.Space(8f);
             GUILayout.Label("Simulation State", _headerStyle);
             DrawKeyValue("Phase", SafeValue(_snapshot.CurrentPhase));
-            DrawKeyValue("Score", _snapshot.CurrentScore.ToString(CultureInfo.InvariantCulture));
-            DrawKeyValue("Last User Input", SafeValue(_snapshot.LastUserInput));
-            DrawKeyValue("Last Event", SafeValue(_snapshot.LastEvent));
-            DrawKeyValue("Last Decision", SafeValue(_snapshot.LastDecision));
+            DrawKeyValue("Readiness Score", _snapshot.CurrentScore.ToString(CultureInfo.InvariantCulture));
+            DrawKeyValue("Readiness Band", SafeValue(_snapshot.CurrentReadinessBand));
+            DrawKeyValue("Participant Location", SafeValue(_snapshot.ParticipantLocation));
+            DrawKeyValue("Hazard State", SafeValue(_snapshot.HazardState));
+            DrawKeyValue("Coworker State", SafeValue(_snapshot.CoworkerState));
+            DrawKeyValue("Audit Events", _snapshot.AuditEventCount.ToString(CultureInfo.InvariantCulture));
+            DrawKeyValue("Last Participant Action", SafeValue(_snapshot.LastParticipantAction));
+            DrawKeyValue("Last Scenario Event", SafeValue(_snapshot.LastScenarioEvent));
+            DrawKeyValue("Last Annotation", SafeValue(_snapshot.LastAnnotation));
+            DrawKeyValue("Last Freeform Input", SafeValue(_snapshot.LastFreeformInput));
             DrawKeyValue("Last Assistant Reply", SafeValue(_snapshot.LastAssistantResponse));
 
             GUILayout.Space(8f);
@@ -529,8 +541,12 @@ namespace GemmaHackathon.SimulationExamples
         {
             switch (actor)
             {
+                case "participant":
+                    return "Participant";
                 case "user":
                     return "Trainee";
+                case "ai_tool":
+                    return "AI Tool";
                 case "assistant":
                     return "AI";
                 case "tool":
@@ -552,10 +568,30 @@ namespace GemmaHackathon.SimulationExamples
                     return "reset";
                 case "update_score":
                     return "updated score";
-                case "advance_phase":
-                    return "advanced phase";
-                case "log_decision":
-                    return "recorded decision";
+                case "scenario_start":
+                    return "started session";
+                case "scenario_event":
+                    return "recorded event";
+                case "prompt_participant":
+                    return "prompted participant";
+                case "change_environment_cue":
+                    return "changed environment";
+                case "annotate_context":
+                    return "recorded annotation";
+                case "transition_phase":
+                    return "transitioned phase";
+                case "request_end_scenario":
+                    return "requested completion";
+                case "critical_error":
+                    return "recorded critical error";
+                case "acknowledge_alarm":
+                    return "acknowledged alarm";
+                case "move_exit_a":
+                    return "moved to Exit A";
+                case "move_exit_b":
+                    return "moved to Exit B";
+                case "help_coworker":
+                    return "helped coworker";
                 case "runtime_ready":
                     return "runtime ready";
                 case "runtime_fallback":

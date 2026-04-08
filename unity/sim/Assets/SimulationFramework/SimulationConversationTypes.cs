@@ -38,6 +38,10 @@ namespace GemmaHackathon.SimulationFramework
     {
         public const string DefaultCompletionOptionsJson =
             "{\"temperature\":0.0,\"auto_handoff\":false,\"enable_thinking_if_supported\":false}";
+        public const string FastTurnCompletionOptionsJson =
+            "{\"temperature\":0.0,\"auto_handoff\":false,\"enable_thinking_if_supported\":false,\"max_new_tokens\":80}";
+        public const string FastTurnFollowUpCompletionOptionsJson =
+            "{\"temperature\":0.0,\"auto_handoff\":false,\"enable_thinking_if_supported\":false,\"max_new_tokens\":48}";
 
         public string SystemPrompt =
             "You are a simulation-aware assistant. Use the current simulation state JSON as the source of truth. " +
@@ -218,6 +222,8 @@ namespace GemmaHackathon.SimulationFramework
         public bool AppliedToHistory;
         public bool CloudHandoffRequested;
         public bool ReachedToolRoundTripLimit;
+        public int CompletionCount;
+        public double TotalCompletionTimeMs;
         public string Error = string.Empty;
         public string FinalAssistantResponse = string.Empty;
         public ConversationMessage InputMessage = new ConversationMessage();

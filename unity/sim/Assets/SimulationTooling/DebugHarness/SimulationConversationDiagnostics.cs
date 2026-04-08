@@ -1,7 +1,7 @@
 using System;
 using GemmaHackathon.SimulationFramework;
 
-namespace GemmaHackathon.SimulationExamples
+namespace GemmaHackathon.SimulationTooling.DebugHarness
 {
     public enum SimulationRuntimeLifecycleState
     {
@@ -85,9 +85,15 @@ namespace GemmaHackathon.SimulationExamples
         public float PendingTurnElapsedSeconds;
         public string CurrentPhase = string.Empty;
         public int CurrentScore;
-        public string LastUserInput = string.Empty;
-        public string LastEvent = string.Empty;
-        public string LastDecision = string.Empty;
+        public string CurrentReadinessBand = string.Empty;
+        public string ParticipantLocation = string.Empty;
+        public string HazardState = string.Empty;
+        public string CoworkerState = string.Empty;
+        public int AuditEventCount;
+        public string LastParticipantAction = string.Empty;
+        public string LastScenarioEvent = string.Empty;
+        public string LastAnnotation = string.Empty;
+        public string LastFreeformInput = string.Empty;
         public string LastAssistantResponse = string.Empty;
         public SimulationKpiSnapshot KpiSnapshot = new SimulationKpiSnapshot();
         public SimulationConversationDiagnosticsTurnSummary LastTurn =

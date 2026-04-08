@@ -134,6 +134,11 @@ namespace GemmaHackathon.SimulationFramework
 
                     var completion = CactusCompletionResponse.Parse(rawJson);
                     result.CompletionResponses.Add(completion);
+                    result.CompletionCount = result.CompletionResponses.Count;
+                    if (completion != null && completion.TotalTimeMs.HasValue)
+                    {
+                        result.TotalCompletionTimeMs += completion.TotalTimeMs.Value;
+                    }
                     result.CloudHandoffRequested = result.CloudHandoffRequested || completion.CloudHandoff;
                     LogCompletionRecord(result.TurnId, completionId, completion);
 
@@ -326,6 +331,8 @@ namespace GemmaHackathon.SimulationFramework
                 ReachedToolRoundTripLimit = result.ReachedToolRoundTripLimit,
                 FinalAssistantResponse = result.FinalAssistantResponse,
                 Error = result.Error,
+                CompletionCount = result.CompletionCount,
+                TotalCompletionTimeMs = result.TotalCompletionTimeMs,
                 AssistantResponseCount = result.AssistantResponses == null ? 0 : result.AssistantResponses.Count,
                 ToolResultCount = result.ToolResults == null ? 0 : result.ToolResults.Count
             };

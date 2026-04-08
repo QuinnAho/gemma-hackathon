@@ -4,7 +4,7 @@ using GemmaHackathon.SimulationFramework;
 using UnityEngine;
 using UnityEngine.Serialization;
 
-namespace GemmaHackathon.SimulationExamples
+namespace GemmaHackathon.SimulationTooling.DebugHarness
 {
     public enum SimulationExampleRuntimeMode
     {
@@ -22,7 +22,7 @@ namespace GemmaHackathon.SimulationExamples
     {
         [SerializeField] private bool _createOverlayIfMissing = true;
         [SerializeField] private bool _overlayVisible = true;
-        [SerializeField] [TextArea(1, 3)] private string _defaultCustomInput = "Trainee completed the first action.";
+        [SerializeField] [TextArea(1, 3)] private string _defaultCustomInput = "Give me the current office fire readiness summary.";
         [SerializeField] private SimulationExampleRuntimeMode _runtimeMode = SimulationExampleRuntimeMode.Automatic;
         [SerializeField] private string _desktopGemmaModelIdentifierOrPath = string.Empty;
         [SerializeField] private string _desktopGemmaPythonExecutablePath = string.Empty;
@@ -63,7 +63,7 @@ namespace GemmaHackathon.SimulationExamples
         {
             if (string.IsNullOrWhiteSpace(_defaultCustomInput))
             {
-                _defaultCustomInput = "Trainee completed the first action.";
+                _defaultCustomInput = "Give me the current office fire readiness summary.";
             }
 
             if (string.IsNullOrWhiteSpace(_cactusModelRelativePath))
@@ -105,6 +105,16 @@ namespace GemmaHackathon.SimulationExamples
         {
             EnsureRuntimeController();
             return _runtimeController.RunEventTurn(eventDescription);
+        }
+
+        public SimulationConversationTurnResult RunParticipantAction(string actionCode, string source = "ui")
+        {
+            EnsureRuntimeController();
+            return _runtimeController.RunParticipantAction(new ParticipantAction
+            {
+                ActionCode = actionCode ?? string.Empty,
+                Source = source ?? string.Empty
+            });
         }
 
         public void ResetSession()

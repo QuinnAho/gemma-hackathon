@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "SimulationAssessment.Tests/1.0.0": {
+        "dependencies": {
+          "SimulationAssessment.Cli": "1.0.0"
+        },
+        "runtime": {
+          "SimulationAssessment.Tests.dll": {}
+        }
+      },
+      "SimulationAssessment.Cli/1.0.0": {
+        "runtime": {
+          "SimulationAssessment.Cli.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "SimulationAssessment.Tests/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "SimulationAssessment.Cli/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

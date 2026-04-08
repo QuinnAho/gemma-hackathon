@@ -4,9 +4,14 @@ namespace GemmaHackathon.Backend.AssessmentCli
 {
     internal sealed class CliOptions
     {
+        public const string NarrativeModeNone = "none";
+        public const string NarrativeModeTemplate = "template";
+        public const string NarrativeModeDesktopGemma = "desktop-gemma";
+
         public bool UseLatest = true;
         public string SessionSelector = string.Empty;
         public string OutputDirectory = string.Empty;
+        public string NarrativeMode = NarrativeModeNone;
         public bool ShowHelp;
 
         public static CliOptions Parse(string[] args)
@@ -52,6 +57,15 @@ namespace GemmaHackathon.Backend.AssessmentCli
                         options.OutputDirectory = args[++i] ?? string.Empty;
                         break;
 
+                    case "--narrative":
+                        if (i + 1 >= args.Length)
+                        {
+                            throw new ArgumentException("Missing value for --narrative.");
+                        }
+
+                        options.NarrativeMode = NormalizeNarrativeMode(args[++i]);
+                        break;
+
                     default:
                         if (string.IsNullOrWhiteSpace(current))
                         {
@@ -70,6 +84,28 @@ namespace GemmaHackathon.Backend.AssessmentCli
             }
 
             return options;
+        }
+
+        private static string NormalizeNarrativeMode(string value)
+        {
+            var safeValue = string.IsNullOrWhiteSpace(value)
+                ? NarrativeModeNone
+                : value.Trim().ToLowerInvariant();
+
+            if (string.Equals(safeValue, "desktop_gemma", StringComparison.Ordinal))
+            {
+                return NarrativeModeDesktopGemma;
+            }
+
+            if (string.Equals(safeValue, NarrativeModeNone, StringComparison.Ordinal) ||
+                string.Equals(safeValue, NarrativeModeTemplate, StringComparison.Ordinal) ||
+                string.Equals(safeValue, NarrativeModeDesktopGemma, StringComparison.Ordinal))
+            {
+                return safeValue;
+            }
+
+            throw new ArgumentException(
+                "Unsupported value for --narrative. Expected `none`, `template`, or `desktop-gemma`.");
         }
     }
 }

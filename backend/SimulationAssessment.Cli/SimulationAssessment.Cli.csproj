@@ -21,6 +21,9 @@
     <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireReadinessScorer.cs" Link="SimulationScenarios\SvrFire\SvrFireReadinessScorer.cs" />
     <Compile Include="..\SimulationAssessment.SvrFire\SvrFireAssessmentReplay.cs" Link="SimulationScenarios\SvrFire\SvrFireAssessmentReplay.cs" />
     <Compile Include="CliOptions.cs" />
+    <Compile Include="BackendDesktopGemmaBridgeClient.cs" />
+    <Compile Include="AssessmentNarrativeComposers.cs" />
+    <Compile Include="InternalsVisibleTo.cs" />
     <Compile Include="RepositoryPaths.cs" />
     <Compile Include="SimulationRunLogReader.cs" />
     <Compile Include="AssessmentExportWriter.cs" />

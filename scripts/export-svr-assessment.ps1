@@ -1,6 +1,8 @@
 param(
     [string]$Session = "",
-    [string]$Output = ""
+    [string]$Output = "",
+    [ValidateSet("none", "template", "desktop-gemma")]
+    [string]$Narrative = "none"
 )
 
 $projectPath = "backend/SimulationAssessment.Cli/SimulationAssessment.Cli.csproj"
@@ -17,6 +19,11 @@ else {
 if (-not [string]::IsNullOrWhiteSpace($Output)) {
     $arguments += "--output"
     $arguments += $Output
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Narrative)) {
+    $arguments += "--narrative"
+    $arguments += $Narrative
 }
 
 dotnet @arguments

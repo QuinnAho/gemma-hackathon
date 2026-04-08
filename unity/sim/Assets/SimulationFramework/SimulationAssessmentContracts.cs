@@ -171,6 +171,23 @@ namespace GemmaHackathon.SimulationFramework
     }
 
     [Serializable]
+    public sealed class AssessmentNarrative
+    {
+        public bool Success;
+        public bool UsedFallback;
+        public string Provider = string.Empty;
+        public string ModelReference = string.Empty;
+        public string PromptVersion = string.Empty;
+        public string GeneratedAtUtc = string.Empty;
+        public string Summary = string.Empty;
+        public string ReportAddendum = string.Empty;
+        public List<string> Recommendations = new List<string>();
+        public string GroundingNote = string.Empty;
+        public string Error = string.Empty;
+        public string RawResponse = string.Empty;
+    }
+
+    [Serializable]
     public sealed class AssessmentReport
     {
         public string SessionId = string.Empty;

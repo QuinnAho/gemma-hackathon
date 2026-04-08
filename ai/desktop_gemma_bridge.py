@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import traceback
 
 import torch
+from huggingface_hub import file_download as hf_file_download
 from transformers import AutoModelForCausalLM, AutoProcessor
 
 
@@ -15,27 +17,29 @@ DEFAULT_MODEL_IDENTIFIER = "google/gemma-4-E2B-it"
 class DesktopGemmaBridge:
     def __init__(self, model_identifier: str) -> None:
         self.model_identifier = model_identifier or DEFAULT_MODEL_IDENTIFIER
+        self.cache_root = configure_hugging_face_cache()
         self.processor = None
         self.model = None
-        self.device_name = "unknown"
+        self.device_name = "cpu"
+        self.model_dtype = torch.float32
 
     def start(self) -> None:
-        self.processor = AutoProcessor.from_pretrained(self.model_identifier)
-
-        try:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_identifier,
-                dtype="auto",
-                device_map="auto",
-            )
-        except Exception:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_identifier,
-                dtype=torch.float32,
-                device_map="cpu",
-            )
-
-        self.device_name = str(self.model.device)
+        disable_hugging_face_symlink_probing()
+        self.device_name, self.model_dtype = resolve_model_device()
+        self.processor = AutoProcessor.from_pretrained(
+            self.model_identifier,
+            cache_dir=self.cache_root or None,
+        )
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_identifier,
+            torch_dtype=self.model_dtype,
+            device_map=None,
+            low_cpu_mem_usage=False,
+            cache_dir=self.cache_root or None,
+        )
+        self.model.to(self.device_name)
+        self.model.eval()
+        configure_generation_tokens(self.processor, self.model)
 
     def handle_complete(self, request: dict) -> dict:
         started_at = time.time()
@@ -53,7 +57,8 @@ class DesktopGemmaBridge:
                 enable_thinking=False,
             )
 
-            inputs = self.processor(text=prompt_text, return_tensors="pt").to(self.model.device)
+            inputs = self.processor(text=prompt_text, return_tensors="pt")
+            inputs = move_inputs_to_device(inputs, self.device_name)
             input_length = inputs["input_ids"].shape[-1]
 
             generation_started_at = time.time()
@@ -157,6 +162,68 @@ def read_options(options_json: str) -> dict:
     options["max_new_tokens"] = max_new_tokens
     options["do_sample"] = options["temperature"] > 0.01
     return options
+
+
+def configure_hugging_face_cache() -> str:
+    configured_root = os.environ.get("GEMMA_HACKATHON_HF_HOME", "").strip()
+    if not configured_root:
+        return ""
+
+    cache_root = Path(configured_root).expanduser()
+    cache_root.mkdir(parents=True, exist_ok=True)
+
+    hub_cache = cache_root / "hub"
+    transformers_cache = cache_root / "transformers"
+    assets_cache = cache_root / "assets"
+    hub_cache.mkdir(parents=True, exist_ok=True)
+    transformers_cache.mkdir(parents=True, exist_ok=True)
+    assets_cache.mkdir(parents=True, exist_ok=True)
+
+    os.environ["HF_HOME"] = str(cache_root)
+    os.environ["HUGGINGFACE_HUB_CACHE"] = str(hub_cache)
+    os.environ["TRANSFORMERS_CACHE"] = str(transformers_cache)
+    os.environ["HF_ASSETS_CACHE"] = str(assets_cache)
+
+    return str(cache_root)
+
+
+def disable_hugging_face_symlink_probing() -> None:
+    hf_file_download.are_symlinks_supported = lambda _cache_dir: False
+
+
+def resolve_model_device() -> tuple[str, torch.dtype]:
+    if torch.cuda.is_available():
+        return "cuda", torch.float16
+
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps", torch.float16
+
+    return "cpu", torch.float32
+
+
+def configure_generation_tokens(processor, model) -> None:
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        return
+
+    if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+
+    if getattr(model.generation_config, "pad_token_id", None) is None:
+        model.generation_config.pad_token_id = tokenizer.pad_token_id
+
+    if getattr(model.generation_config, "eos_token_id", None) is None and tokenizer.eos_token_id is not None:
+        model.generation_config.eos_token_id = tokenizer.eos_token_id
+
+
+def move_inputs_to_device(inputs, device_name: str):
+    if hasattr(inputs, "to"):
+        return inputs.to(device_name)
+
+    return {
+        key: value.to(device_name) if hasattr(value, "to") else value
+        for key, value in inputs.items()
+    }
 
 
 def build_prompt_messages(messages: list, tool_definitions: list) -> list:

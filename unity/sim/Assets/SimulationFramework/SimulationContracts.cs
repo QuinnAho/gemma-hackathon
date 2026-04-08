@@ -261,6 +261,19 @@ namespace GemmaHackathon.SimulationFramework
         SimulationToolResult Execute(SimulationToolCall call);
     }
 
+    public interface ISimulationToolExecutor
+    {
+        SimulationToolResult Execute(SimulationToolRegistry registry, SimulationToolCall call);
+    }
+
+    public sealed class InlineSimulationToolExecutor : ISimulationToolExecutor
+    {
+        public SimulationToolResult Execute(SimulationToolRegistry registry, SimulationToolCall call)
+        {
+            return SimulationToolRegistry.ExecuteInline(registry, call);
+        }
+    }
+
     public sealed class SimulationToolRegistry
     {
         private readonly Dictionary<string, ISimulationToolHandler> _handlers =
@@ -297,29 +310,36 @@ namespace GemmaHackathon.SimulationFramework
 
         public bool TryExecute(SimulationToolCall call, out SimulationToolResult result)
         {
+            result = ExecuteInline(this, call);
+            return result != null && !result.IsError;
+        }
+
+        public static SimulationToolResult ExecuteInline(SimulationToolRegistry registry, SimulationToolCall call)
+        {
+            if (registry == null)
+            {
+                return SimulationToolResult.CreateError(string.Empty, "Tool registry is not available.");
+            }
+
             if (call == null || string.IsNullOrWhiteSpace(call.Name))
             {
-                result = SimulationToolResult.CreateError(string.Empty, "Tool call is missing a tool name.");
-                return false;
+                return SimulationToolResult.CreateError(string.Empty, "Tool call is missing a tool name.");
             }
 
             ISimulationToolHandler handler;
-            if (!_handlers.TryGetValue(call.Name, out handler))
+            if (!registry._handlers.TryGetValue(call.Name, out handler))
             {
-                result = SimulationToolResult.CreateError(call.Name, "Tool is not registered.");
-                return false;
+                return SimulationToolResult.CreateError(call.Name, "Tool is not registered.");
             }
 
             try
             {
-                result = handler.Execute(call) ?? SimulationToolResult.CreateError(call.Name, "Tool returned no result.");
+                return handler.Execute(call) ?? SimulationToolResult.CreateError(call.Name, "Tool returned no result.");
             }
             catch (Exception ex)
             {
-                result = SimulationToolResult.CreateError(call.Name, ex.Message);
+                return SimulationToolResult.CreateError(call.Name, ex.Message);
             }
-
-            return !result.IsError;
         }
 
         public string BuildToolsJson()

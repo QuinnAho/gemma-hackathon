@@ -50,6 +50,8 @@ namespace GemmaHackathon.SimulationFramework
         public int MaxToolRoundTrips = 2;
         public bool ResetModelBeforeEachCompletion = true;
         public Action<SimulationConversationTraceEntry> TraceSink;
+        public ISimulationToolExecutor ToolExecutor;
+        public ISimulationRunLogger RunLogger;
     }
 
     [Serializable]
@@ -211,6 +213,7 @@ namespace GemmaHackathon.SimulationFramework
     [Serializable]
     public sealed class SimulationConversationTurnResult
     {
+        public string TurnId = string.Empty;
         public bool Success;
         public bool AppliedToHistory;
         public bool CloudHandoffRequested;

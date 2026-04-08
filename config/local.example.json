@@ -6,6 +6,7 @@
     "desktopGemmaTransformersModel": "google/gemma-4-E2B-it",
     "desktopModelsRoot": ".local/models",
     "desktopCactusModelPath": ".local/models/gemma-4-e2b",
+    "simulationRunLogRoot": ".local/logs/simulation-runs",
     "telemetryRoot": ".local/logs/telemetry",
     "benchmarkRoot": ".local/benchmarks",
     "audioFixturesRoot": ".local/audio/fixtures",

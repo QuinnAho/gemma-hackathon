@@ -1,0 +1,17 @@
+{
+  "session_state": "complete",
+  "phase": "complete",
+  "participant_location": "hazard_zone",
+  "total_points": 0,
+  "max_points": 100,
+  "band": "fail",
+  "timeline_count": 7,
+  "critical_failures": [
+    "wrong_exit_into_fire"
+  ],
+  "deficit_ids": [
+    "wrong_exit_into_fire"
+  ],
+  "metric_scores": {},
+  "summary_contains": "Final participant location: hazard_zone."
+}

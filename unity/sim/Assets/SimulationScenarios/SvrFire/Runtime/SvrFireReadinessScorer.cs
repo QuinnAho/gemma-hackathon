@@ -7,36 +7,170 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
 {
     internal static class SvrFireReadinessScorer
     {
-        public static SvrFireReadinessScore Calculate(SvrFireScenarioSnapshot snapshot)
+        private const string MetricAlarmRecognition = "alarm_recognition";
+        private const string MetricEvacuationStart = "evacuation_start";
+        private const string MetricRouteCorrectness = "route_correctness";
+        private const string MetricProtocolCompletion = "protocol_completion";
+        private const string MetricCriticalErrorPenalty = "critical_error_penalty";
+
+        private const string FactAlarmActive = "alarm.active";
+        private const string FactParticipantLocation = "participant.location";
+        private const string FactHazardState = "hazard.state";
+        private const string FactCoworkerState = "coworker.state";
+        private const string FactSelectedRouteId = "participant.selected_route";
+        private const string FactAlarmTriggeredAt = "timing.alarm_triggered_at_seconds";
+        private const string FactAlarmAcknowledgedAt = "timing.alarm_acknowledged_at_seconds";
+        private const string FactEvacuationStartedAt = "timing.evacuation_started_at_seconds";
+
+        private static readonly ScoringPolicy DefaultPolicy = CreateDefaultPolicy();
+
+        public static AssessmentInput CreateAssessmentInput(SvrFireScenarioSnapshot snapshot)
         {
             var safeSnapshot = snapshot ?? new SvrFireScenarioSnapshot();
-            var score = new SvrFireReadinessScore();
-            score.MaxPoints = 100;
-
-            if (ContainsCriticalFailure(safeSnapshot, SvrFireScenarioValues.CriticalIgnoredAlarm))
+            var sessionRecord = safeSnapshot.SessionRecord ?? new AuditSessionRecord();
+            var input = new AssessmentInput
             {
-                score.TotalPoints = 0;
-                score.Band = "fail";
-                score.CriticalFailures.Add(SvrFireScenarioValues.CriticalIgnoredAlarm);
-                return score;
+                SessionId = sessionRecord.SessionId ?? string.Empty,
+                ScenarioId = SvrFireScenarioValues.ScenarioId,
+                ScenarioVariantId = string.IsNullOrWhiteSpace(safeSnapshot.VariantId)
+                    ? SvrFireScenarioValues.DefaultVariantId
+                    : safeSnapshot.VariantId,
+                SessionState = safeSnapshot.SessionState ?? string.Empty,
+                Phase = safeSnapshot.Phase ?? string.Empty,
+                RubricVersion = string.IsNullOrWhiteSpace(sessionRecord.RubricVersion)
+                    ? SvrFireScenarioValues.DefaultRubricVersion
+                    : sessionRecord.RubricVersion,
+                ScoringVersion = string.IsNullOrWhiteSpace(sessionRecord.ScoringVersion)
+                    ? SvrFireScenarioValues.DefaultScoringVersion
+                    : sessionRecord.ScoringVersion,
+                ElapsedSeconds = safeSnapshot.ElapsedSeconds
+            };
+
+            input.SetBooleanFact(FactAlarmActive, safeSnapshot.AlarmActive);
+            input.SetTextFact(FactParticipantLocation, safeSnapshot.ParticipantLocation);
+            input.SetTextFact(FactHazardState, safeSnapshot.HazardState);
+            input.SetTextFact(FactCoworkerState, safeSnapshot.CoworkerState);
+            input.SetTextFact(FactSelectedRouteId, safeSnapshot.SelectedRouteId);
+
+            if (safeSnapshot.AlarmTriggeredAtSeconds.HasValue)
+            {
+                input.SetNumericFact(FactAlarmTriggeredAt, safeSnapshot.AlarmTriggeredAtSeconds.Value);
             }
 
-            if (ContainsCriticalFailure(safeSnapshot, SvrFireScenarioValues.CriticalWrongExit))
+            if (safeSnapshot.AlarmAcknowledgedAtSeconds.HasValue)
             {
-                score.TotalPoints = 0;
-                score.Band = "fail";
-                score.CriticalFailures.Add(SvrFireScenarioValues.CriticalWrongExit);
-                return score;
+                input.SetNumericFact(FactAlarmAcknowledgedAt, safeSnapshot.AlarmAcknowledgedAtSeconds.Value);
             }
 
-            AddMetric(score, "alarm_recognition", ScoreAlarmRecognition(safeSnapshot));
-            AddMetric(score, "evacuation_start", ScoreEvacuationStart(safeSnapshot));
-            AddMetric(score, "route_correctness", ScoreRouteCorrectness(safeSnapshot));
-            AddMetric(score, "protocol_completion", ScoreProtocolCompletion(safeSnapshot));
-            AddMetric(score, "critical_error_penalty", ScoreCriticalErrorPenalty(safeSnapshot));
+            if (safeSnapshot.EvacuationStartedAtSeconds.HasValue)
+            {
+                input.SetNumericFact(FactEvacuationStartedAt, safeSnapshot.EvacuationStartedAtSeconds.Value);
+            }
+
+            if (safeSnapshot.RouteAvailability != null)
+            {
+                foreach (var pair in safeSnapshot.RouteAvailability)
+                {
+                    input.SetBooleanFact(BuildRouteAvailabilityKey(pair.Key), pair.Value);
+                }
+            }
+
+            if (safeSnapshot.AuditEvents != null)
+            {
+                for (var i = 0; i < safeSnapshot.AuditEvents.Count; i++)
+                {
+                    var auditEvent = safeSnapshot.AuditEvents[i];
+                    if (auditEvent == null || string.IsNullOrWhiteSpace(auditEvent.ActionCode))
+                    {
+                        continue;
+                    }
+
+                    input.ActionCodes.Add(auditEvent.ActionCode);
+                }
+            }
+
+            if (safeSnapshot.CriticalErrorCodes != null)
+            {
+                for (var i = 0; i < safeSnapshot.CriticalErrorCodes.Count; i++)
+                {
+                    var code = safeSnapshot.CriticalErrorCodes[i];
+                    if (string.IsNullOrWhiteSpace(code))
+                    {
+                        continue;
+                    }
+
+                    input.CriticalFailureCodes.Add(code);
+                }
+            }
+
+            return input;
+        }
+
+        public static AssessmentResult Calculate(SvrFireScenarioSnapshot snapshot)
+        {
+            return Calculate(CreateAssessmentInput(snapshot), DefaultPolicy);
+        }
+
+        public static AssessmentArtifacts CreateArtifacts(SvrFireScenarioSnapshot snapshot)
+        {
+            return CreateArtifacts(CreateAssessmentInput(snapshot), DefaultPolicy);
+        }
+
+        public static AssessmentArtifacts CreateArtifacts(AssessmentInput input, ScoringPolicy policy)
+        {
+            var safeInput = input ?? new AssessmentInput();
+            var safePolicy = policy ?? CreateDefaultPolicy();
+            var result = Calculate(safeInput, safePolicy);
+            return new AssessmentArtifacts
+            {
+                Input = safeInput,
+                Result = result,
+                Report = BuildReport(safeInput, result)
+            };
+        }
+
+        public static AssessmentResult Calculate(AssessmentInput input, ScoringPolicy policy)
+        {
+            var safeInput = input ?? new AssessmentInput();
+            var safePolicy = policy ?? CreateDefaultPolicy();
+            var result = new AssessmentResult
+            {
+                PolicyId = safePolicy.PolicyId ?? string.Empty,
+                SessionId = safeInput.SessionId ?? string.Empty,
+                ScenarioId = safeInput.ScenarioId ?? string.Empty,
+                ScenarioVariantId = safeInput.ScenarioVariantId ?? string.Empty,
+                RubricVersion = safeInput.RubricVersion ?? string.Empty,
+                ScoringVersion = safeInput.ScoringVersion ?? string.Empty,
+                MaxPoints = safePolicy.MaxPoints
+            };
+
+            for (var i = 0; i < safePolicy.CriticalFailureCodes.Count; i++)
+            {
+                var code = safePolicy.CriticalFailureCodes[i];
+                if (!safeInput.HasCriticalFailure(code))
+                {
+                    continue;
+                }
+
+                result.CriticalFailures.Add(code);
+                AddCriticalFailureDeficit(result, code);
+            }
+
+            if (result.CriticalFailures.Count > 0)
+            {
+                result.TotalPoints = 0;
+                result.Band = "fail";
+                return result;
+            }
+
+            AddMetric(result, MetricAlarmRecognition, ScoreTimingMetric(safeInput, safePolicy, MetricAlarmRecognition));
+            AddMetric(result, MetricEvacuationStart, ScoreTimingMetric(safeInput, safePolicy, MetricEvacuationStart));
+            AddMetric(result, MetricRouteCorrectness, ScoreRouteCorrectness(safeInput, safePolicy));
+            AddMetric(result, MetricProtocolCompletion, ScoreProtocolCompletion(safeInput, safePolicy));
+            AddMetric(result, MetricCriticalErrorPenalty, ScoreCriticalErrorPenalty(safeInput, safePolicy));
 
             var total = 0;
-            foreach (var pair in score.MetricScores)
+            foreach (var pair in result.MetricScores)
             {
                 total += pair.Value;
             }
@@ -45,129 +179,239 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             {
                 total = 0;
             }
-            else if (total > score.MaxPoints)
+            else if (total > result.MaxPoints)
             {
-                total = score.MaxPoints;
+                total = result.MaxPoints;
             }
 
-            score.TotalPoints = total;
-            score.Band = total >= 70 ? "pass" : (total >= 50 ? "marginal" : "fail");
-            return score;
+            result.TotalPoints = total;
+            result.Band = ResolveBand(total, safePolicy);
+            AddDerivedDeficits(result, safeInput, safePolicy);
+            return result;
         }
 
         public static List<SimulationChecklistItem> BuildChecklist(SvrFireScenarioSnapshot snapshot)
         {
-            var safeSnapshot = snapshot ?? new SvrFireScenarioSnapshot();
+            return BuildChecklist(CreateAssessmentInput(snapshot));
+        }
+
+        public static List<SimulationChecklistItem> BuildChecklist(AssessmentInput input)
+        {
+            return BuildChecklistInternal(input);
+        }
+
+        public static AssessmentReport BuildReport(SvrFireScenarioSnapshot snapshot)
+        {
+            var input = CreateAssessmentInput(snapshot);
+            var result = Calculate(input, DefaultPolicy);
+            return BuildReport(input, result);
+        }
+
+        public static AssessmentReport BuildReport(AssessmentInput input, AssessmentResult result)
+        {
+            var safeInput = input ?? new AssessmentInput();
+            var safeResult = result ?? new AssessmentResult();
+            var checklist = BuildChecklistInternal(safeInput);
+            var report = new AssessmentReport
+            {
+                SessionId = safeInput.SessionId ?? string.Empty,
+                ScenarioId = safeInput.ScenarioId ?? string.Empty,
+                ScenarioVariantId = safeInput.ScenarioVariantId ?? string.Empty,
+                PolicyId = safeResult.PolicyId ?? string.Empty,
+                RubricVersion = safeInput.RubricVersion ?? string.Empty,
+                ScoringVersion = safeInput.ScoringVersion ?? string.Empty,
+                GeneratedAtUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                TotalPoints = safeResult.TotalPoints,
+                MaxPoints = safeResult.MaxPoints,
+                Band = safeResult.Band ?? string.Empty,
+                Summary = BuildSummary(safeInput, safeResult)
+            };
+
+            report.Sections.Add(BuildOverviewSection(safeInput, safeResult));
+            report.Sections.Add(BuildChecklistSection(checklist));
+            report.Sections.Add(BuildMetricsSection(safeResult));
+
+            if (safeResult.CriticalFailures.Count > 0)
+            {
+                report.Sections.Add(BuildCriticalFailuresSection(safeResult));
+            }
+
+            report.Sections.Add(BuildDeficitsSection(safeResult));
+            return report;
+        }
+
+        private static List<SimulationChecklistItem> BuildChecklistInternal(AssessmentInput input)
+        {
+            var safeInput = input ?? new AssessmentInput();
             var checklist = new List<SimulationChecklistItem>(4);
+            var alarmAcknowledgedAt = safeInput.GetNumericFact(FactAlarmAcknowledgedAt);
+            var evacuationStartedAt = safeInput.GetNumericFact(FactEvacuationStartedAt);
+            var participantLocation = safeInput.GetTextFact(FactParticipantLocation);
+            var selectedRouteId = safeInput.GetTextFact(FactSelectedRouteId);
+            var safeRouteChosen = IsSafeRouteChosen(safeInput);
+
             checklist.Add(CreateChecklistItem(
                 "ack_alarm",
                 "Recognize and acknowledge the alarm",
-                safeSnapshot.AlarmAcknowledgedAtSeconds.HasValue,
-                safeSnapshot.AlarmAcknowledgedAtSeconds.HasValue
-                    ? BuildTimingNote(safeSnapshot, safeSnapshot.AlarmAcknowledgedAtSeconds.Value, "Acknowledged")
+                alarmAcknowledgedAt.HasValue,
+                alarmAcknowledgedAt.HasValue
+                    ? BuildTimingNote(safeInput, alarmAcknowledgedAt.Value, "Acknowledged")
                     : "Alarm not yet acknowledged."));
             checklist.Add(CreateChecklistItem(
                 "start_evacuation",
                 "Begin evacuation promptly",
-                safeSnapshot.EvacuationStartedAtSeconds.HasValue,
-                safeSnapshot.EvacuationStartedAtSeconds.HasValue
-                    ? BuildTimingNote(safeSnapshot, safeSnapshot.EvacuationStartedAtSeconds.Value, "Started moving")
+                evacuationStartedAt.HasValue,
+                evacuationStartedAt.HasValue
+                    ? BuildTimingNote(safeInput, evacuationStartedAt.Value, "Started moving")
                     : "Evacuation has not started."));
             checklist.Add(CreateChecklistItem(
                 "choose_safe_route",
                 "Choose an available exit route",
-                IsSafeRouteChosen(safeSnapshot),
-                IsSafeRouteChosen(safeSnapshot)
-                    ? "Selected " + (safeSnapshot.SelectedRouteId ?? string.Empty) + "."
+                safeRouteChosen,
+                safeRouteChosen
+                    ? "Selected " + selectedRouteId + "."
                     : "No safe route choice recorded."));
             checklist.Add(CreateChecklistItem(
                 "reach_safety",
                 "Reach the safe zone",
-                string.Equals(safeSnapshot.ParticipantLocation, SvrFireScenarioValues.LocationSafe, StringComparison.Ordinal),
-                string.Equals(safeSnapshot.ParticipantLocation, SvrFireScenarioValues.LocationSafe, StringComparison.Ordinal)
+                string.Equals(participantLocation, SvrFireScenarioValues.LocationSafe, StringComparison.Ordinal),
+                string.Equals(participantLocation, SvrFireScenarioValues.LocationSafe, StringComparison.Ordinal)
                     ? "Participant reached safety."
                     : "Participant is not yet in the safe zone."));
             return checklist;
         }
 
-        private static bool ContainsCriticalFailure(SvrFireScenarioSnapshot snapshot, string code)
+        private static ScoringPolicy CreateDefaultPolicy()
         {
-            if (snapshot == null || snapshot.CriticalErrorCodes == null || string.IsNullOrWhiteSpace(code))
+            var policy = new ScoringPolicy
             {
-                return false;
-            }
+                PolicyId = SvrFireScenarioValues.DefaultScoringVersion,
+                ScenarioId = SvrFireScenarioValues.ScenarioId,
+                RubricVersion = SvrFireScenarioValues.DefaultRubricVersion,
+                ScoringVersion = SvrFireScenarioValues.DefaultScoringVersion,
+                MaxPoints = 100,
+                PassThreshold = 70,
+                MarginalThreshold = 50,
+                ProtocolCompletionPoints = 25,
+                CriticalErrorPenaltyPerItem = 10
+            };
 
-            for (var i = 0; i < snapshot.CriticalErrorCodes.Count; i++)
+            policy.CriticalFailureCodes.Add(SvrFireScenarioValues.CriticalIgnoredAlarm);
+            policy.CriticalFailureCodes.Add(SvrFireScenarioValues.CriticalWrongExit);
+            policy.FixedMetricPoints[MetricRouteCorrectness] = 25;
+            policy.TimingMetrics.Add(CreateTimingMetricPolicy(
+                MetricAlarmRecognition,
+                FactAlarmAcknowledgedAt,
+                25,
+                new AssessmentTimingBand { MaxSeconds = 5d, Points = 25 },
+                new AssessmentTimingBand { MaxSeconds = 10d, Points = 18 },
+                new AssessmentTimingBand { MaxSeconds = 20d, Points = 10 }));
+            policy.TimingMetrics.Add(CreateTimingMetricPolicy(
+                MetricEvacuationStart,
+                FactEvacuationStartedAt,
+                25,
+                new AssessmentTimingBand { MaxSeconds = 10d, Points = 25 },
+                new AssessmentTimingBand { MaxSeconds = 20d, Points = 18 },
+                new AssessmentTimingBand { MaxSeconds = 30d, Points = 10 }));
+            return policy;
+        }
+
+        private static AssessmentTimingMetricPolicy CreateTimingMetricPolicy(
+            string metricId,
+            string measurementKey,
+            int maxPoints,
+            params AssessmentTimingBand[] bands)
+        {
+            var policy = new AssessmentTimingMetricPolicy
             {
-                if (string.Equals(snapshot.CriticalErrorCodes[i], code, StringComparison.Ordinal))
+                MetricId = metricId ?? string.Empty,
+                MeasurementKey = measurementKey ?? string.Empty,
+                MaxPoints = maxPoints
+            };
+
+            if (bands != null)
+            {
+                for (var i = 0; i < bands.Length; i++)
                 {
-                    return true;
+                    if (bands[i] == null)
+                    {
+                        continue;
+                    }
+
+                    policy.Bands.Add(bands[i]);
                 }
             }
 
-            return false;
+            return policy;
         }
 
-        private static int ScoreAlarmRecognition(SvrFireScenarioSnapshot snapshot)
+        private static string BuildRouteAvailabilityKey(string routeId)
         {
-            if (snapshot == null || !snapshot.AlarmAcknowledgedAtSeconds.HasValue)
+            return "route." + (routeId ?? string.Empty) + ".available";
+        }
+
+        private static int ScoreTimingMetric(AssessmentInput input, ScoringPolicy policy, string metricId)
+        {
+            var metricPolicy = FindTimingMetricPolicy(policy, metricId);
+            if (metricPolicy == null)
             {
                 return 0;
             }
 
-            var seconds = ResolveAlarmRelativeSeconds(snapshot, snapshot.AlarmAcknowledgedAtSeconds.Value);
-            if (seconds <= 5f)
+            var absoluteSeconds = input.GetNumericFact(metricPolicy.MeasurementKey);
+            if (!absoluteSeconds.HasValue)
             {
-                return 25;
+                return 0;
             }
 
-            if (seconds <= 10f)
+            var relativeSeconds = ResolveAlarmRelativeSeconds(input, absoluteSeconds.Value);
+            for (var i = 0; i < metricPolicy.Bands.Count; i++)
             {
-                return 18;
-            }
-
-            if (seconds <= 20f)
-            {
-                return 10;
+                if (relativeSeconds <= metricPolicy.Bands[i].MaxSeconds)
+                {
+                    return metricPolicy.Bands[i].Points;
+                }
             }
 
             return 0;
         }
 
-        private static int ScoreEvacuationStart(SvrFireScenarioSnapshot snapshot)
+        private static AssessmentTimingMetricPolicy FindTimingMetricPolicy(ScoringPolicy policy, string metricId)
         {
-            if (snapshot == null || !snapshot.EvacuationStartedAtSeconds.HasValue)
+            if (policy == null || string.IsNullOrWhiteSpace(metricId))
+            {
+                return null;
+            }
+
+            for (var i = 0; i < policy.TimingMetrics.Count; i++)
+            {
+                var metricPolicy = policy.TimingMetrics[i];
+                if (metricPolicy != null &&
+                    string.Equals(metricPolicy.MetricId, metricId, StringComparison.Ordinal))
+                {
+                    return metricPolicy;
+                }
+            }
+
+            return null;
+        }
+
+        private static int ScoreRouteCorrectness(AssessmentInput input, ScoringPolicy policy)
+        {
+            if (!IsSafeRouteChosen(input))
             {
                 return 0;
             }
 
-            var seconds = ResolveAlarmRelativeSeconds(snapshot, snapshot.EvacuationStartedAtSeconds.Value);
-            if (seconds <= 10f)
-            {
-                return 25;
-            }
-
-            if (seconds <= 20f)
-            {
-                return 18;
-            }
-
-            if (seconds <= 30f)
-            {
-                return 10;
-            }
-
-            return 0;
+            int points;
+            return policy != null && policy.FixedMetricPoints.TryGetValue(MetricRouteCorrectness, out points)
+                ? points
+                : 0;
         }
 
-        private static int ScoreRouteCorrectness(SvrFireScenarioSnapshot snapshot)
+        private static int ScoreProtocolCompletion(AssessmentInput input, ScoringPolicy policy)
         {
-            return IsSafeRouteChosen(snapshot) ? 25 : 0;
-        }
-
-        private static int ScoreProtocolCompletion(SvrFireScenarioSnapshot snapshot)
-        {
-            var checklist = BuildChecklist(snapshot);
+            var checklist = BuildChecklist(input);
             if (checklist.Count == 0)
             {
                 return 0;
@@ -182,54 +426,84 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 }
             }
 
-            return (int)Math.Round((completedSteps / (double)checklist.Count) * 25d, MidpointRounding.AwayFromZero);
+            return (int)Math.Round(
+                (completedSteps / (double)checklist.Count) * (policy == null ? 0d : policy.ProtocolCompletionPoints),
+                MidpointRounding.AwayFromZero);
         }
 
-        private static int ScoreCriticalErrorPenalty(SvrFireScenarioSnapshot snapshot)
+        private static int ScoreCriticalErrorPenalty(AssessmentInput input, ScoringPolicy policy)
         {
-            if (snapshot == null || snapshot.CriticalErrorCodes == null || snapshot.CriticalErrorCodes.Count == 0)
+            if (input == null || input.CriticalFailureCodes.Count == 0 || policy == null)
             {
                 return 0;
             }
 
-            return -10 * snapshot.CriticalErrorCodes.Count;
+            var penaltyCount = 0;
+            for (var i = 0; i < input.CriticalFailureCodes.Count; i++)
+            {
+                if (!IsCriticalFailureTerminal(policy, input.CriticalFailureCodes[i]))
+                {
+                    penaltyCount++;
+                }
+            }
+
+            return penaltyCount == 0 ? 0 : -policy.CriticalErrorPenaltyPerItem * penaltyCount;
         }
 
-        private static bool IsSafeRouteChosen(SvrFireScenarioSnapshot snapshot)
+        private static bool IsCriticalFailureTerminal(ScoringPolicy policy, string code)
         {
-            if (snapshot == null || string.IsNullOrWhiteSpace(snapshot.SelectedRouteId))
+            if (policy == null || string.IsNullOrWhiteSpace(code))
             {
                 return false;
             }
 
-            bool available;
-            return snapshot.RouteAvailability != null &&
-                   snapshot.RouteAvailability.TryGetValue(snapshot.SelectedRouteId, out available) &&
-                   available &&
-                   string.Equals(snapshot.ParticipantLocation, SvrFireScenarioValues.LocationSafe, StringComparison.Ordinal);
+            for (var i = 0; i < policy.CriticalFailureCodes.Count; i++)
+            {
+                if (string.Equals(policy.CriticalFailureCodes[i], code, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
-        private static float ResolveAlarmRelativeSeconds(SvrFireScenarioSnapshot snapshot, float absoluteSeconds)
+        private static bool IsSafeRouteChosen(AssessmentInput input)
         {
-            if (snapshot != null &&
-                snapshot.AlarmTriggeredAtSeconds.HasValue &&
-                absoluteSeconds >= snapshot.AlarmTriggeredAtSeconds.Value)
+            if (input == null)
             {
-                return absoluteSeconds - snapshot.AlarmTriggeredAtSeconds.Value;
+                return false;
+            }
+
+            var selectedRouteId = input.GetTextFact(FactSelectedRouteId);
+            if (string.IsNullOrWhiteSpace(selectedRouteId))
+            {
+                return false;
+            }
+
+            return input.GetBooleanFact(BuildRouteAvailabilityKey(selectedRouteId)) &&
+                   string.Equals(
+                       input.GetTextFact(FactParticipantLocation),
+                       SvrFireScenarioValues.LocationSafe,
+                       StringComparison.Ordinal);
+        }
+
+        private static double ResolveAlarmRelativeSeconds(AssessmentInput input, double absoluteSeconds)
+        {
+            var alarmTriggeredAt = input == null ? null : input.GetNumericFact(FactAlarmTriggeredAt);
+            if (alarmTriggeredAt.HasValue && absoluteSeconds >= alarmTriggeredAt.Value)
+            {
+                return absoluteSeconds - alarmTriggeredAt.Value;
             }
 
             return absoluteSeconds;
         }
 
-        private static string BuildTimingNote(
-            SvrFireScenarioSnapshot snapshot,
-            float absoluteSeconds,
-            string actionLabel)
+        private static string BuildTimingNote(AssessmentInput input, double absoluteSeconds, string actionLabel)
         {
-            var relativeSeconds = ResolveAlarmRelativeSeconds(snapshot, absoluteSeconds);
-            if (snapshot != null &&
-                snapshot.AlarmTriggeredAtSeconds.HasValue &&
-                absoluteSeconds >= snapshot.AlarmTriggeredAtSeconds.Value)
+            var relativeSeconds = ResolveAlarmRelativeSeconds(input, absoluteSeconds);
+            var alarmTriggeredAt = input == null ? null : input.GetNumericFact(FactAlarmTriggeredAt);
+            if (alarmTriggeredAt.HasValue && absoluteSeconds >= alarmTriggeredAt.Value)
             {
                 return actionLabel +
                     " " +
@@ -243,14 +517,304 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 "s.";
         }
 
-        private static void AddMetric(SvrFireReadinessScore score, string key, int value)
+        private static string ResolveBand(int totalPoints, ScoringPolicy policy)
         {
-            if (score == null || string.IsNullOrWhiteSpace(key))
+            if (policy == null)
+            {
+                return "fail";
+            }
+
+            if (totalPoints >= policy.PassThreshold)
+            {
+                return "pass";
+            }
+
+            return totalPoints >= policy.MarginalThreshold ? "marginal" : "fail";
+        }
+
+        private static void AddMetric(AssessmentResult result, string metricId, int value)
+        {
+            if (result == null || string.IsNullOrWhiteSpace(metricId))
             {
                 return;
             }
 
-            score.MetricScores[key] = value;
+            result.MetricScores[metricId] = value;
+        }
+
+        private static void AddDerivedDeficits(AssessmentResult result, AssessmentInput input, ScoringPolicy policy)
+        {
+            if (result == null || input == null)
+            {
+                return;
+            }
+
+            var alarmAcknowledgedAt = input.GetNumericFact(FactAlarmAcknowledgedAt);
+            if (!alarmAcknowledgedAt.HasValue)
+            {
+                AddDeficit(
+                    result,
+                    "alarm_ack_missing",
+                    MetricAlarmRecognition,
+                    "high",
+                    "Alarm acknowledgement was not recorded.",
+                    "The participant never acknowledged the alarm during the assessment.");
+            }
+            else if (ScoreTimingMetric(input, policy, MetricAlarmRecognition) < 25)
+            {
+                AddDeficit(
+                    result,
+                    "alarm_ack_delayed",
+                    MetricAlarmRecognition,
+                    "medium",
+                    "Alarm acknowledgement was delayed.",
+                    BuildTimingNote(input, alarmAcknowledgedAt.Value, "Acknowledged"));
+            }
+
+            var evacuationStartedAt = input.GetNumericFact(FactEvacuationStartedAt);
+            if (!evacuationStartedAt.HasValue)
+            {
+                AddDeficit(
+                    result,
+                    "evacuation_missing",
+                    MetricEvacuationStart,
+                    "high",
+                    "Evacuation never started.",
+                    "The participant did not begin moving toward an exit.");
+            }
+            else if (ScoreTimingMetric(input, policy, MetricEvacuationStart) < 25)
+            {
+                AddDeficit(
+                    result,
+                    "evacuation_delayed",
+                    MetricEvacuationStart,
+                    "medium",
+                    "Evacuation start was delayed.",
+                    BuildTimingNote(input, evacuationStartedAt.Value, "Started moving"));
+            }
+
+            if (!IsSafeRouteChosen(input))
+            {
+                AddDeficit(
+                    result,
+                    "safe_route_missing",
+                    MetricRouteCorrectness,
+                    "high",
+                    "A safe exit route was not confirmed.",
+                    "The participant did not end the drill on a validated safe route.");
+            }
+
+            if (!string.Equals(
+                input.GetTextFact(FactParticipantLocation),
+                SvrFireScenarioValues.LocationSafe,
+                StringComparison.Ordinal))
+            {
+                AddDeficit(
+                    result,
+                    "safety_not_reached",
+                    MetricProtocolCompletion,
+                    "high",
+                    "The participant did not reach the safe zone.",
+                    "The final recorded participant location was `" +
+                    (input.GetTextFact(FactParticipantLocation) ?? string.Empty) +
+                    "`.");
+            }
+        }
+
+        private static void AddCriticalFailureDeficit(AssessmentResult result, string code)
+        {
+            if (string.Equals(code, SvrFireScenarioValues.CriticalIgnoredAlarm, StringComparison.Ordinal))
+            {
+                AddDeficit(
+                    result,
+                    code,
+                    MetricAlarmRecognition,
+                    "critical",
+                    "Alarm acknowledgement exceeded the failure window.",
+                    "The participant failed to acknowledge the alarm within 60 seconds.");
+                return;
+            }
+
+            if (string.Equals(code, SvrFireScenarioValues.CriticalWrongExit, StringComparison.Ordinal))
+            {
+                AddDeficit(
+                    result,
+                    code,
+                    MetricRouteCorrectness,
+                    "critical",
+                    "The participant selected a hazardous exit route.",
+                    "The evacuation path ended in a hazardous zone.");
+                return;
+            }
+
+            AddDeficit(
+                result,
+                code,
+                MetricCriticalErrorPenalty,
+                "critical",
+                "A critical assessment failure was recorded.",
+                code ?? string.Empty);
+        }
+
+        private static void AddDeficit(
+            AssessmentResult result,
+            string id,
+            string metricId,
+            string severity,
+            string summary,
+            string details)
+        {
+            if (result == null || string.IsNullOrWhiteSpace(id))
+            {
+                return;
+            }
+
+            for (var i = 0; i < result.Deficits.Count; i++)
+            {
+                if (result.Deficits[i] != null &&
+                    string.Equals(result.Deficits[i].Id, id, StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+
+            result.Deficits.Add(new DeficitRecord
+            {
+                Id = id ?? string.Empty,
+                MetricId = metricId ?? string.Empty,
+                Severity = severity ?? string.Empty,
+                Summary = summary ?? string.Empty,
+                Details = details ?? string.Empty
+            });
+        }
+
+        private static AssessmentReportSection BuildOverviewSection(AssessmentInput input, AssessmentResult result)
+        {
+            var section = new AssessmentReportSection
+            {
+                Id = "overview",
+                Title = "Outcome"
+            };
+            section.Entries.Add(
+                "Score " +
+                result.TotalPoints.ToString(CultureInfo.InvariantCulture) +
+                "/" +
+                result.MaxPoints.ToString(CultureInfo.InvariantCulture) +
+                " (" +
+                (result.Band ?? string.Empty) +
+                ").");
+            section.Entries.Add("Phase: " + SafeValue(input.Phase) + ".");
+            section.Entries.Add("Participant location: " + SafeValue(input.GetTextFact(FactParticipantLocation)) + ".");
+            section.Entries.Add("Hazard state: " + SafeValue(input.GetTextFact(FactHazardState)) + ".");
+            return section;
+        }
+
+        private static AssessmentReportSection BuildChecklistSection(IReadOnlyList<SimulationChecklistItem> checklist)
+        {
+            var section = new AssessmentReportSection
+            {
+                Id = "checklist",
+                Title = "Checklist"
+            };
+
+            if (checklist == null || checklist.Count == 0)
+            {
+                section.Entries.Add("No checklist items were generated.");
+                return section;
+            }
+
+            for (var i = 0; i < checklist.Count; i++)
+            {
+                var item = checklist[i] ?? new SimulationChecklistItem();
+                section.Entries.Add(
+                    (item.Completed ? "[x] " : "[ ] ") +
+                    (item.Label ?? string.Empty) +
+                    " " +
+                    SafeValue(item.Notes));
+            }
+
+            return section;
+        }
+
+        private static AssessmentReportSection BuildMetricsSection(AssessmentResult result)
+        {
+            var section = new AssessmentReportSection
+            {
+                Id = "metrics",
+                Title = "Metric Breakdown"
+            };
+
+            if (result == null || result.MetricScores.Count == 0)
+            {
+                section.Entries.Add("No metric scores were recorded.");
+                return section;
+            }
+
+            foreach (var pair in result.MetricScores)
+            {
+                section.Entries.Add(pair.Key + ": " + pair.Value.ToString(CultureInfo.InvariantCulture));
+            }
+
+            return section;
+        }
+
+        private static AssessmentReportSection BuildCriticalFailuresSection(AssessmentResult result)
+        {
+            var section = new AssessmentReportSection
+            {
+                Id = "critical_failures",
+                Title = "Critical Failures"
+            };
+
+            for (var i = 0; i < result.CriticalFailures.Count; i++)
+            {
+                section.Entries.Add(result.CriticalFailures[i] ?? string.Empty);
+            }
+
+            return section;
+        }
+
+        private static AssessmentReportSection BuildDeficitsSection(AssessmentResult result)
+        {
+            var section = new AssessmentReportSection
+            {
+                Id = "deficits",
+                Title = "Deficits"
+            };
+
+            if (result == null || result.Deficits.Count == 0)
+            {
+                section.Entries.Add("No deterministic deficits were recorded.");
+                return section;
+            }
+
+            for (var i = 0; i < result.Deficits.Count; i++)
+            {
+                var deficit = result.Deficits[i] ?? new DeficitRecord();
+                section.Entries.Add(
+                    "[" +
+                    SafeValue(deficit.Severity) +
+                    "] " +
+                    SafeValue(deficit.Summary) +
+                    " " +
+                    SafeValue(deficit.Details));
+            }
+
+            return section;
+        }
+
+        private static string BuildSummary(AssessmentInput input, AssessmentResult result)
+        {
+            var location = input.GetTextFact(FactParticipantLocation);
+            return "Assessment completed with a score of " +
+                   result.TotalPoints.ToString(CultureInfo.InvariantCulture) +
+                   "/" +
+                   result.MaxPoints.ToString(CultureInfo.InvariantCulture) +
+                   " (" +
+                   (result.Band ?? string.Empty) +
+                   "). Final participant location: " +
+                   SafeValue(location) +
+                   ".";
         }
 
         private static SimulationChecklistItem CreateChecklistItem(
@@ -266,6 +830,11 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 Completed = completed,
                 Notes = notes ?? string.Empty
             };
+        }
+
+        private static string SafeValue(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "(none)" : value.Trim();
         }
     }
 }

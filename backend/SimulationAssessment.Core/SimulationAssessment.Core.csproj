@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>SimulationAssessment.Core</AssemblyName>
+    <RootNamespace>GemmaHackathon</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationAssessmentContracts.cs" Link="SimulationFramework\SimulationAssessmentContracts.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationAuditContracts.cs" Link="SimulationFramework\SimulationAuditContracts.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationContracts.cs" Link="SimulationFramework\SimulationContracts.cs" />
+    <Compile Include="PortableSimulationRunJson.cs" />
+  </ItemGroup>
+</Project>

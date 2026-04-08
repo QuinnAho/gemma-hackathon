@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS0649</NoWarn>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>SimulationAssessment.SvrFire</AssemblyName>
+    <RootNamespace>GemmaHackathon</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SimulationAssessment.Core\SimulationAssessment.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireScenarioContracts.cs" Link="SimulationScenarios\SvrFire\SvrFireScenarioContracts.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireScenarioValues.cs" Link="SimulationScenarios\SvrFire\SvrFireScenarioValues.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireReadinessScorer.cs" Link="SimulationScenarios\SvrFire\SvrFireReadinessScorer.cs" />
+    <Compile Include="SvrFireAssessmentReplay.cs" />
+  </ItemGroup>
+</Project>

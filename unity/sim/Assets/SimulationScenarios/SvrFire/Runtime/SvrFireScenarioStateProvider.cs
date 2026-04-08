@@ -36,6 +36,13 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 : _state.CaptureStatusSnapshot(GetElapsedSeconds());
         }
 
+        public AssessmentArtifacts CaptureAssessmentArtifacts()
+        {
+            return _state == null
+                ? new AssessmentArtifacts()
+                : _state.CaptureAssessmentArtifacts(GetElapsedSeconds());
+        }
+
         public IReadOnlyList<SimulationChecklistItem> CaptureChecklist()
         {
             return _state == null

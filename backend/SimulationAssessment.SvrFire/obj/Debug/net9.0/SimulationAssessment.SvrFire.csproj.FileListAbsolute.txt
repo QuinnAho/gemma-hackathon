@@ -1,0 +1,16 @@
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\bin\Debug\net9.0\SimulationAssessment.SvrFire.deps.json
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\bin\Debug\net9.0\SimulationAssessment.SvrFire.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\bin\Debug\net9.0\SimulationAssessment.SvrFire.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\bin\Debug\net9.0\SimulationAssessment.Core.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\bin\Debug\net9.0\SimulationAssessment.Core.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\SimulationAssessment.SvrFire.csproj.AssemblyReference.cache
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\SimulationAssessment.SvrFire.GeneratedMSBuildEditorConfig.editorconfig
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\SimulationAssessment.SvrFire.AssemblyInfoInputs.cache
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\SimulationAssessment.SvrFire.AssemblyInfo.cs
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\SimulationAssessment.SvrFire.csproj.CoreCompileInputs.cache
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\SimulationAssessment.SvrFire.sourcelink.json
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\Simulati.4A7242E1.Up2Date
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\SimulationAssessment.SvrFire.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\refint\SimulationAssessment.SvrFire.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\SimulationAssessment.SvrFire.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.SvrFire\obj\Debug\net9.0\ref\SimulationAssessment.SvrFire.dll

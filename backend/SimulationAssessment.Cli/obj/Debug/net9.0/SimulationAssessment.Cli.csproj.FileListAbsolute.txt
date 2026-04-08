@@ -1,0 +1,15 @@
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Cli.exe
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Cli.deps.json
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Cli.runtimeconfig.json
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Cli.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Cli.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.GeneratedMSBuildEditorConfig.editorconfig
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.AssemblyInfoInputs.cache
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.AssemblyInfo.cs
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.csproj.CoreCompileInputs.cache
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.sourcelink.json
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\refint\SimulationAssessment.Cli.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.genruntimeconfig.cache
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\ref\SimulationAssessment.Cli.dll

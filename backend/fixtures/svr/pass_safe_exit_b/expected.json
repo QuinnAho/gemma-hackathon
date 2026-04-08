@@ -1,0 +1,22 @@
+{
+  "session_state": "complete",
+  "phase": "complete",
+  "participant_location": "safe",
+  "total_points": 62,
+  "max_points": 100,
+  "band": "marginal",
+  "timeline_count": 5,
+  "critical_failures": [],
+  "deficit_ids": [
+    "alarm_ack_missing",
+    "evacuation_delayed"
+  ],
+  "metric_scores": {
+    "alarm_recognition": 0,
+    "evacuation_start": 18,
+    "route_correctness": 25,
+    "protocol_completion": 19,
+    "critical_error_penalty": 0
+  },
+  "summary_contains": "Final participant location: safe."
+}

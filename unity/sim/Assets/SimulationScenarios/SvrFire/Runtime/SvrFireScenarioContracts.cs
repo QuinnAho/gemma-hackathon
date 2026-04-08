@@ -3,15 +3,6 @@ using GemmaHackathon.SimulationFramework;
 
 namespace GemmaHackathon.SimulationScenarios.SvrFire
 {
-    internal sealed class SvrFireReadinessScore
-    {
-        public int TotalPoints;
-        public int MaxPoints;
-        public string Band = string.Empty;
-        public Dictionary<string, int> MetricScores = new Dictionary<string, int>(System.StringComparer.Ordinal);
-        public List<string> CriticalFailures = new List<string>();
-    }
-
     internal sealed class SvrFireScenarioSnapshot
     {
         public AuditSessionRecord SessionRecord = new AuditSessionRecord();
@@ -50,6 +41,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
         public string LastAssistantResponse = string.Empty;
         public string LastFreeformInput = string.Empty;
         public int AuditEventCount;
-        public SvrFireReadinessScore ReadinessScore = new SvrFireReadinessScore();
+        public AssessmentResult Assessment = new AssessmentResult();
+        public AssessmentReport Report = new AssessmentReport();
     }
 }

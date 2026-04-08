@@ -171,6 +171,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             lock (_syncRoot)
             {
                 var snapshot = CaptureScenarioSnapshotLocked(elapsedSeconds);
+                var assessmentArtifacts = SvrFireReadinessScorer.CreateArtifacts(snapshot);
                 return new SvrFireScenarioStatusSnapshot
                 {
                     SessionState = snapshot.SessionState,
@@ -184,8 +185,17 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                     LastAssistantResponse = snapshot.LastAssistantResponse,
                     LastFreeformInput = snapshot.LastFreeformInput,
                     AuditEventCount = snapshot.AuditEvents.Count,
-                    ReadinessScore = SvrFireReadinessScorer.Calculate(snapshot)
+                    Assessment = assessmentArtifacts.Result,
+                    Report = assessmentArtifacts.Report
                 };
+            }
+        }
+
+        public AssessmentArtifacts CaptureAssessmentArtifacts(float elapsedSeconds)
+        {
+            lock (_syncRoot)
+            {
+                return SvrFireReadinessScorer.CreateArtifacts(CaptureScenarioSnapshotLocked(elapsedSeconds));
             }
         }
 
@@ -193,7 +203,9 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
         {
             lock (_syncRoot)
             {
-                return SvrFireReadinessScorer.BuildChecklist(CaptureScenarioSnapshotLocked(elapsedSeconds));
+                var snapshot = CaptureScenarioSnapshotLocked(elapsedSeconds);
+                var assessmentArtifacts = SvrFireReadinessScorer.CreateArtifacts(snapshot);
+                return SvrFireReadinessScorer.BuildChecklist(assessmentArtifacts.Input);
             }
         }
 
@@ -216,6 +228,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             lock (_syncRoot)
             {
                 var snapshot = CaptureScenarioSnapshotLocked(elapsedSeconds);
+                var assessmentArtifacts = SvrFireReadinessScorer.CreateArtifacts(snapshot);
                 var stateSnapshot = new SimulationStateSnapshot();
                 stateSnapshot.SimulationId = SvrFireScenarioValues.SimulationId;
                 stateSnapshot.ScenarioId = SvrFireScenarioValues.ScenarioId;
@@ -238,7 +251,13 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 stateSnapshot.Entries.Add(CreateObjectEntry("routes", "availability", BuildRouteAvailabilityJson(snapshot.RouteAvailability)));
                 stateSnapshot.Entries.Add(CreateNumberEntry("audit", "event_count", snapshot.AuditEvents.Count));
 
-                var checklist = SvrFireReadinessScorer.BuildChecklist(snapshot);
+                stateSnapshot.Entries.Add(CreateNumberEntry("assessment", "score", assessmentArtifacts.Result.TotalPoints));
+                stateSnapshot.Entries.Add(CreateNumberEntry("assessment", "max_points", assessmentArtifacts.Result.MaxPoints));
+                stateSnapshot.Entries.Add(CreateStringEntry("assessment", "band", assessmentArtifacts.Result.Band));
+                stateSnapshot.Entries.Add(CreateNumberEntry("assessment", "critical_failure_count", assessmentArtifacts.Result.CriticalFailures.Count));
+                stateSnapshot.Entries.Add(CreateNumberEntry("assessment", "deficit_count", assessmentArtifacts.Result.Deficits.Count));
+
+                var checklist = SvrFireReadinessScorer.BuildChecklist(assessmentArtifacts.Input);
                 for (var i = 0; i < checklist.Count; i++)
                 {
                     stateSnapshot.Checklist.Add(CloneChecklistItem(checklist[i]));
@@ -258,8 +277,8 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             lock (_syncRoot)
             {
                 var snapshot = CaptureScenarioSnapshotLocked(elapsedSeconds);
-                var score = SvrFireReadinessScorer.Calculate(snapshot);
-                var checklist = SvrFireReadinessScorer.BuildChecklist(snapshot);
+                var assessmentArtifacts = SvrFireReadinessScorer.CreateArtifacts(snapshot);
+                var checklist = SvrFireReadinessScorer.BuildChecklist(assessmentArtifacts.Input);
 
                 var completedChecklistCount = 0;
                 for (var i = 0; i < checklist.Count; i++)
@@ -271,11 +290,12 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 }
 
                 var kpis = new SimulationKpiSnapshot();
-                kpis.Entries.Add(CreateNumberKpi("readiness_score", "Readiness Score", score.TotalPoints));
-                kpis.Entries.Add(CreateNumberKpi("readiness_max", "Readiness Max", score.MaxPoints));
-                kpis.Entries.Add(CreateStringKpi("readiness_band", "Readiness Band", score.Band));
+                kpis.Entries.Add(CreateNumberKpi("readiness_score", "Readiness Score", assessmentArtifacts.Result.TotalPoints));
+                kpis.Entries.Add(CreateNumberKpi("readiness_max", "Readiness Max", assessmentArtifacts.Result.MaxPoints));
+                kpis.Entries.Add(CreateStringKpi("readiness_band", "Readiness Band", assessmentArtifacts.Result.Band));
                 kpis.Entries.Add(CreateNumberKpi("audit_event_count", "Audit Events", snapshot.AuditEvents.Count));
-                kpis.Entries.Add(CreateNumberKpi("critical_failure_count", "Critical Failures", score.CriticalFailures.Count));
+                kpis.Entries.Add(CreateNumberKpi("critical_failure_count", "Critical Failures", assessmentArtifacts.Result.CriticalFailures.Count));
+                kpis.Entries.Add(CreateNumberKpi("deficit_count", "Deficits", assessmentArtifacts.Result.Deficits.Count));
                 kpis.Entries.Add(CreateNumberKpi("checklist_completed", "Checklist Completed", completedChecklistCount));
                 kpis.Entries.Add(CreateNumberKpi("checklist_total", "Checklist Total", checklist.Count));
                 kpis.Entries.Add(CreateStringKpi("participant_location", "Participant Location", snapshot.ParticipantLocation));

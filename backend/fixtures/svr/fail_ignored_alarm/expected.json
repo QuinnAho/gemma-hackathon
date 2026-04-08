@@ -1,0 +1,17 @@
+{
+  "session_state": "running",
+  "phase": "alarm",
+  "participant_location": "workstation",
+  "total_points": 0,
+  "max_points": 100,
+  "band": "fail",
+  "timeline_count": 3,
+  "critical_failures": [
+    "ignored_alarm_60s"
+  ],
+  "deficit_ids": [
+    "ignored_alarm_60s"
+  ],
+  "metric_scores": {},
+  "summary_contains": "Final participant location: workstation."
+}

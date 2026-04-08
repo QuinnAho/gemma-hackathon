@@ -133,7 +133,7 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             var scenarioStatus = _stateProvider == null
                 ? new SvrFireScenarioStatusSnapshot()
                 : _stateProvider.CaptureStatus();
-            var readinessScore = scenarioStatus.ReadinessScore ?? new SvrFireReadinessScore();
+            var assessment = scenarioStatus.Assessment ?? new AssessmentResult();
 
             return new SimulationConversationDiagnosticsSnapshot
             {
@@ -173,8 +173,8 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
                 PendingTurnDescription = GetPendingTurnDescription(),
                 PendingTurnElapsedSeconds = GetPendingTurnElapsedSeconds(),
                 CurrentPhase = scenarioStatus.Phase ?? string.Empty,
-                CurrentScore = readinessScore.TotalPoints,
-                CurrentReadinessBand = readinessScore.Band ?? string.Empty,
+                CurrentScore = assessment.TotalPoints,
+                CurrentReadinessBand = assessment.Band ?? string.Empty,
                 ParticipantLocation = scenarioStatus.ParticipantLocation ?? string.Empty,
                 HazardState = scenarioStatus.HazardState ?? string.Empty,
                 CoworkerState = scenarioStatus.CoworkerState ?? string.Empty,

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS0649</NoWarn>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>SimulationAssessment.Cli</AssemblyName>
+    <RootNamespace>GemmaHackathon.Backend.AssessmentCli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationAssessmentContracts.cs" Link="SimulationFramework\SimulationAssessmentContracts.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationAuditContracts.cs" Link="SimulationFramework\SimulationAuditContracts.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationContracts.cs" Link="SimulationFramework\SimulationContracts.cs" />
+    <Compile Include="..\SimulationAssessment.Core\PortableSimulationRunJson.cs" Link="SimulationFramework\PortableSimulationRunJson.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireScenarioContracts.cs" Link="SimulationScenarios\SvrFire\SvrFireScenarioContracts.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireScenarioValues.cs" Link="SimulationScenarios\SvrFire\SvrFireScenarioValues.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireReadinessScorer.cs" Link="SimulationScenarios\SvrFire\SvrFireReadinessScorer.cs" />
+    <Compile Include="..\SimulationAssessment.SvrFire\SvrFireAssessmentReplay.cs" Link="SimulationScenarios\SvrFire\SvrFireAssessmentReplay.cs" />
+    <Compile Include="CliOptions.cs" />
+    <Compile Include="RepositoryPaths.cs" />
+    <Compile Include="SimulationRunLogReader.cs" />
+    <Compile Include="AssessmentExportWriter.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

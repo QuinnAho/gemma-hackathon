@@ -47,17 +47,17 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
         private static string BuildFollowUpSummary(SvrFireScenarioStatusSnapshot status)
         {
             var safeStatus = status ?? new SvrFireScenarioStatusSnapshot();
-            var score = safeStatus.ReadinessScore ?? new SvrFireReadinessScore();
+            var assessment = safeStatus.Assessment ?? new AssessmentResult();
             return "Assessment complete. Phase " +
                    (safeStatus.Phase ?? string.Empty) +
                    ". Location " +
                    (safeStatus.ParticipantLocation ?? string.Empty) +
                    ". Readiness " +
-                   score.TotalPoints.ToString(CultureInfo.InvariantCulture) +
+                   assessment.TotalPoints.ToString(CultureInfo.InvariantCulture) +
                    "/" +
-                   score.MaxPoints.ToString(CultureInfo.InvariantCulture) +
+                   assessment.MaxPoints.ToString(CultureInfo.InvariantCulture) +
                    " (" +
-                   (score.Band ?? string.Empty) +
+                   (assessment.Band ?? string.Empty) +
                    ").";
         }
 

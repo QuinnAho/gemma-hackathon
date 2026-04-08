@@ -1,0 +1,140 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.SvrFire\\SimulationAssessment.SvrFire.csproj": {}
+  },
+  "projects": {
+    "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.Core\\SimulationAssessment.Core.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.Core\\SimulationAssessment.Core.csproj",
+        "projectName": "SimulationAssessment.Core",
+        "projectPath": "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.Core\\SimulationAssessment.Core.csproj",
+        "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
+        "outputPath": "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.Core\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\ahoqp1\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.300/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.SvrFire\\SimulationAssessment.SvrFire.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.SvrFire\\SimulationAssessment.SvrFire.csproj",
+        "projectName": "SimulationAssessment.SvrFire",
+        "projectPath": "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.SvrFire\\SimulationAssessment.SvrFire.csproj",
+        "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
+        "outputPath": "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.SvrFire\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\ahoqp1\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.Core\\SimulationAssessment.Core.csproj": {
+                "projectPath": "D:\\ahoqp1\\Repositories\\gemma-hackathon\\backend\\SimulationAssessment.Core\\SimulationAssessment.Core.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.300/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

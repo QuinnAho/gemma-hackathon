@@ -16,8 +16,10 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             new Dictionary<string, bool>(StringComparer.Ordinal);
 
         private AuditSessionRecord _sessionRecord = new AuditSessionRecord();
+        private string _sessionState = SvrFireScenarioValues.SessionStateReady;
         private string _phase = SvrFireScenarioValues.PhaseNormal;
         private bool _alarmActive;
+        private float? _alarmTriggeredAtSeconds;
         private string _participantLocation = SvrFireScenarioValues.LocationWorkstation;
         private string _hazardState = SvrFireScenarioValues.HazardNone;
         private string _coworkerState = SvrFireScenarioValues.CoworkerNearby;
@@ -30,7 +32,6 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
         private string _lastAnnotation = string.Empty;
         private string _lastAssistantResponse = string.Empty;
         private string _lastFreeformInput = string.Empty;
-        private bool _scenarioCompletionRequested;
 
         public SvrFireScenarioState(Action<AuditEvent> auditEventSink)
         {
@@ -38,7 +39,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             ResetStateLocked();
         }
 
-        public void ConfigureSession(AuditSessionRecord sessionRecord, float elapsedSeconds)
+        public void ConfigureSession(AuditSessionRecord sessionRecord)
         {
             lock (_syncRoot)
             {
@@ -59,17 +60,6 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 }
 
                 ResetStateLocked();
-                RecordAuditEventLocked(
-                    "system",
-                    "scenario_start",
-                    "system",
-                    SvrFireScenarioValues.ScenarioId,
-                    "started",
-                    AuditEventJson.CreateObject(
-                        new KeyValuePair<string, string>("scenario_id", SvrFireScenarioValues.ScenarioId),
-                        new KeyValuePair<string, string>("variant_id", _variantId)),
-                    elapsedSeconds);
-                AddActionLocked("system", "scenario_start", "SVR office fire session started.", elapsedSeconds);
             }
         }
 
@@ -81,22 +71,37 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             }
         }
 
-        public void ResetForNewSession(float elapsedSeconds)
+        public void ResetToReadyState()
         {
             lock (_syncRoot)
             {
                 ResetStateLocked();
+            }
+        }
+
+        public bool StartSession(float elapsedSeconds)
+        {
+            lock (_syncRoot)
+            {
+                if (IsSessionRunningLocked())
+                {
+                    return false;
+                }
+
+                ResetStateLocked();
+                _sessionState = SvrFireScenarioValues.SessionStateRunning;
                 RecordAuditEventLocked(
                     "system",
                     "scenario_start",
                     "system",
                     SvrFireScenarioValues.ScenarioId,
-                    "restarted",
+                    "started",
                     AuditEventJson.CreateObject(
                         new KeyValuePair<string, string>("scenario_id", SvrFireScenarioValues.ScenarioId),
                         new KeyValuePair<string, string>("variant_id", _variantId)),
                     elapsedSeconds);
-                AddActionLocked("system", "reset_session", "SVR office fire session reset.", elapsedSeconds);
+                AddActionLocked("system", "scenario_start", "SVR office fire session started.", elapsedSeconds);
+                return true;
             }
         }
 
@@ -129,212 +134,35 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             var safeAction = NormalizeParticipantAction(action);
             lock (_syncRoot)
             {
+                if (!IsSessionRunningLocked())
+                {
+                    return null;
+                }
+
                 EnsureTimeBasedCriticalFailuresLocked(elapsedSeconds);
                 ApplyParticipantActionLocked(safeAction, elapsedSeconds);
                 return safeAction.Clone();
             }
         }
 
-        public void RecordScenarioEvent(string description, float elapsedSeconds)
+        public bool TriggerAlarmEscalation(string hazardState, string announcement, float elapsedSeconds)
         {
-            var safeDescription = description ?? string.Empty;
             lock (_syncRoot)
             {
-                EnsureTimeBasedCriticalFailuresLocked(elapsedSeconds);
-                _lastScenarioEvent = safeDescription;
-                AddActionLocked("system", "scenario_event", safeDescription, elapsedSeconds);
-                RecordAuditEventLocked(
+                if (!IsSessionRunningLocked() || _alarmActive)
+                {
+                    return false;
+                }
+
+                ApplyHazardEscalationLocked(
+                    hazardState,
+                    announcement,
+                    elapsedSeconds,
                     "system",
-                    "scenario_event",
+                    "alarm_triggered",
                     "system",
-                    SvrFireScenarioValues.ScenarioId,
-                    "recorded",
-                    AuditEventJson.CreateObject(
-                        new KeyValuePair<string, string>("description", safeDescription)),
-                    elapsedSeconds);
-            }
-        }
-
-        public void EscalateHazard(string hazardState, string announcement, float elapsedSeconds)
-        {
-            lock (_syncRoot)
-            {
-                EnsureTimeBasedCriticalFailuresLocked(elapsedSeconds);
-                var normalizedHazard = string.IsNullOrWhiteSpace(hazardState)
-                    ? SvrFireScenarioValues.HazardAlarmAndSmokeExitA
-                    : hazardState.Trim();
-
-                _alarmActive = true;
-                _phase = SvrFireScenarioValues.PhaseAlarm;
-                _hazardState = normalizedHazard;
-                if (string.Equals(normalizedHazard, SvrFireScenarioValues.HazardAlarmAndSmokeExitA, StringComparison.Ordinal))
-                {
-                    _routeAvailability["exit_a"] = false;
-                    _routeAvailability["exit_b"] = true;
-                }
-                else if (string.Equals(normalizedHazard, SvrFireScenarioValues.HazardAlarmAndSmokeExitB, StringComparison.Ordinal))
-                {
-                    _routeAvailability["exit_a"] = true;
-                    _routeAvailability["exit_b"] = false;
-                }
-                else
-                {
-                    _routeAvailability["exit_a"] = true;
-                    _routeAvailability["exit_b"] = true;
-                }
-
-                if (string.Equals(_coworkerState, SvrFireScenarioValues.CoworkerNearby, StringComparison.Ordinal))
-                {
-                    _coworkerState = SvrFireScenarioValues.CoworkerNeedsHelp;
-                }
-
-                var detail = string.IsNullOrWhiteSpace(announcement)
-                    ? "Hazard escalated to " + normalizedHazard + "."
-                    : announcement;
-                _lastScenarioEvent = detail;
-                AddActionLocked("ai_tool", "escalate_hazard", detail, elapsedSeconds);
-                RecordAuditEventLocked(
-                    "ai_tool",
-                    "escalate_hazard",
-                    "assistant",
-                    normalizedHazard,
-                    "applied",
-                    AuditEventJson.CreateObject(
-                        new KeyValuePair<string, string>("hazard_state", normalizedHazard),
-                        new KeyValuePair<string, string>("announcement", detail)),
-                    elapsedSeconds);
-            }
-        }
-
-        public void PromptParticipant(string message, float elapsedSeconds)
-        {
-            var safeMessage = string.IsNullOrWhiteSpace(message)
-                ? "Proceed to the clear exit."
-                : message.Trim();
-
-            lock (_syncRoot)
-            {
-                AddActionLocked("ai_tool", "prompt_participant", safeMessage, elapsedSeconds);
-                RecordAuditEventLocked(
-                    "ai_tool",
-                    "prompt_participant",
-                    "assistant",
-                    "participant",
-                    "delivered",
-                    AuditEventJson.CreateObject(
-                        new KeyValuePair<string, string>("message", safeMessage)),
-                    elapsedSeconds);
-            }
-        }
-
-        public void ChangeEnvironmentCue(
-            string routeId,
-            bool? available,
-            string coworkerState,
-            string note,
-            float elapsedSeconds)
-        {
-            lock (_syncRoot)
-            {
-                if (!string.IsNullOrWhiteSpace(routeId) && available.HasValue)
-                {
-                    _routeAvailability[routeId] = available.Value;
-                }
-
-                if (!string.IsNullOrWhiteSpace(coworkerState))
-                {
-                    _coworkerState = coworkerState.Trim();
-                }
-
-                var detail = string.IsNullOrWhiteSpace(note)
-                    ? "Environment cue updated."
-                    : note.Trim();
-                _lastScenarioEvent = detail;
-                AddActionLocked("ai_tool", "change_environment_cue", detail, elapsedSeconds);
-                RecordAuditEventLocked(
-                    "ai_tool",
-                    "change_environment_cue",
-                    "assistant",
-                    string.IsNullOrWhiteSpace(routeId) ? "environment" : routeId,
-                    "applied",
-                    BuildEnvironmentCueData(routeId, available, coworkerState, detail),
-                    elapsedSeconds);
-            }
-        }
-
-        public void AnnotateContext(string note, float elapsedSeconds)
-        {
-            var safeNote = string.IsNullOrWhiteSpace(note)
-                ? "AI context note recorded."
-                : note.Trim();
-
-            lock (_syncRoot)
-            {
-                _lastAnnotation = safeNote;
-                AddActionLocked("ai_tool", "annotate_context", safeNote, elapsedSeconds);
-                RecordAuditEventLocked(
-                    "ai_tool",
-                    "annotate_context",
-                    "assistant",
-                    "audit_context",
-                    "recorded",
-                    AuditEventJson.CreateObject(
-                        new KeyValuePair<string, string>("note", safeNote)),
-                    elapsedSeconds);
-            }
-        }
-
-        public void TransitionPhase(string phase, float elapsedSeconds)
-        {
-            var safePhase = string.IsNullOrWhiteSpace(phase)
-                ? _phase
-                : phase.Trim();
-
-            lock (_syncRoot)
-            {
-                _phase = safePhase;
-                AddActionLocked("ai_tool", "transition_phase", safePhase, elapsedSeconds);
-                RecordAuditEventLocked(
-                    "ai_tool",
-                    "transition_phase",
-                    "assistant",
-                    safePhase,
-                    "applied",
-                    AuditEventJson.CreateObject(
-                        new KeyValuePair<string, string>("phase", safePhase)),
-                    elapsedSeconds);
-            }
-        }
-
-        public void RequestEndScenario(string reason, float elapsedSeconds)
-        {
-            var safeReason = string.IsNullOrWhiteSpace(reason)
-                ? "AI requested scenario completion."
-                : reason.Trim();
-
-            lock (_syncRoot)
-            {
-                EnsureTimeBasedCriticalFailuresLocked(elapsedSeconds);
-                var canComplete =
-                    string.Equals(_participantLocation, SvrFireScenarioValues.LocationSafe, StringComparison.Ordinal) ||
-                    _criticalErrorCodes.Count > 0;
-                var outcome = canComplete ? "approved" : "deferred_not_terminal";
-                if (canComplete)
-                {
-                    _scenarioCompletionRequested = true;
-                    _phase = SvrFireScenarioValues.PhaseComplete;
-                }
-
-                AddActionLocked("ai_tool", "request_end_scenario", safeReason, elapsedSeconds);
-                RecordAuditEventLocked(
-                    "ai_tool",
-                    "request_end_scenario",
-                    "assistant",
-                    "scenario",
-                    outcome,
-                    AuditEventJson.CreateObject(
-                        new KeyValuePair<string, string>("reason", safeReason)),
-                    elapsedSeconds);
+                    "triggered");
+                return true;
             }
         }
 
@@ -345,6 +173,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 var snapshot = CaptureScenarioSnapshotLocked(elapsedSeconds);
                 return new SvrFireScenarioStatusSnapshot
                 {
+                    SessionState = snapshot.SessionState,
                     Phase = snapshot.Phase,
                     ParticipantLocation = snapshot.ParticipantLocation,
                     HazardState = snapshot.HazardState,
@@ -393,6 +222,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 stateSnapshot.ElapsedSeconds = snapshot.ElapsedSeconds;
 
                 stateSnapshot.Entries.Add(CreateStringEntry("session", "variant_id", snapshot.VariantId));
+                stateSnapshot.Entries.Add(CreateStringEntry("session", "session_state", snapshot.SessionState));
                 stateSnapshot.Entries.Add(CreateStringEntry("status", "phase", snapshot.Phase));
                 stateSnapshot.Entries.Add(CreateBoolEntry("status", "alarm_active", snapshot.AlarmActive));
                 stateSnapshot.Entries.Add(CreateStringEntry("status", "participant_location", snapshot.ParticipantLocation));
@@ -402,6 +232,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 stateSnapshot.Entries.Add(CreateStringEntry("status", "last_participant_action", snapshot.LastParticipantAction));
                 stateSnapshot.Entries.Add(CreateStringEntry("status", "last_scenario_event", snapshot.LastScenarioEvent));
                 stateSnapshot.Entries.Add(CreateStringEntry("status", "last_annotation", snapshot.LastAnnotation));
+                stateSnapshot.Entries.Add(CreateNullableFloatEntry("timing", "alarm_triggered_at_seconds", snapshot.AlarmTriggeredAtSeconds));
                 stateSnapshot.Entries.Add(CreateNullableFloatEntry("timing", "alarm_acknowledged_at_seconds", snapshot.AlarmAcknowledgedAtSeconds));
                 stateSnapshot.Entries.Add(CreateNullableFloatEntry("timing", "evacuation_started_at_seconds", snapshot.EvacuationStartedAtSeconds));
                 stateSnapshot.Entries.Add(CreateObjectEntry("routes", "availability", BuildRouteAvailabilityJson(snapshot.RouteAvailability)));
@@ -459,8 +290,10 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
 
             var snapshot = new SvrFireScenarioSnapshot();
             snapshot.SessionRecord = CloneSessionRecord(_sessionRecord);
+            snapshot.SessionState = _sessionState;
             snapshot.Phase = _phase;
             snapshot.AlarmActive = _alarmActive;
+            snapshot.AlarmTriggeredAtSeconds = _alarmTriggeredAtSeconds;
             snapshot.ParticipantLocation = _participantLocation;
             snapshot.HazardState = _hazardState;
             snapshot.CoworkerState = _coworkerState;
@@ -542,10 +375,113 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             }
         }
 
+        private void ApplyHazardEscalationLocked(
+            string hazardState,
+            string announcement,
+            float elapsedSeconds,
+            string source,
+            string actionCode,
+            string actor,
+            string outcome)
+        {
+            EnsureTimeBasedCriticalFailuresLocked(elapsedSeconds);
+            var normalizedHazard = string.IsNullOrWhiteSpace(hazardState)
+                ? SvrFireScenarioValues.HazardAlarmAndSmokeExitA
+                : hazardState.Trim();
+
+            if (!_alarmActive || !_alarmTriggeredAtSeconds.HasValue)
+            {
+                _alarmTriggeredAtSeconds = elapsedSeconds;
+            }
+
+            _alarmActive = true;
+            _phase = SvrFireScenarioValues.PhaseAlarm;
+            _hazardState = normalizedHazard;
+            if (string.Equals(normalizedHazard, SvrFireScenarioValues.HazardAlarmAndSmokeExitA, StringComparison.Ordinal))
+            {
+                _routeAvailability["exit_a"] = false;
+                _routeAvailability["exit_b"] = true;
+            }
+            else if (string.Equals(normalizedHazard, SvrFireScenarioValues.HazardAlarmAndSmokeExitB, StringComparison.Ordinal))
+            {
+                _routeAvailability["exit_a"] = true;
+                _routeAvailability["exit_b"] = false;
+            }
+            else
+            {
+                _routeAvailability["exit_a"] = true;
+                _routeAvailability["exit_b"] = true;
+            }
+
+            if (string.Equals(_coworkerState, SvrFireScenarioValues.CoworkerNearby, StringComparison.Ordinal))
+            {
+                _coworkerState = SvrFireScenarioValues.CoworkerNeedsHelp;
+            }
+
+            var detail = string.IsNullOrWhiteSpace(announcement)
+                ? "Hazard escalated to " + normalizedHazard + "."
+                : announcement;
+            _lastScenarioEvent = detail;
+
+            var actionActor = string.Equals(source, "system", StringComparison.Ordinal)
+                ? "system"
+                : "ai_tool";
+            AddActionLocked(actionActor, actionCode, detail, elapsedSeconds);
+            RecordAuditEventLocked(
+                source,
+                actionCode,
+                actor,
+                normalizedHazard,
+                outcome,
+                AuditEventJson.CreateObject(
+                    new KeyValuePair<string, string>("hazard_state", normalizedHazard),
+                    new KeyValuePair<string, string>("announcement", detail)),
+                elapsedSeconds);
+        }
+
+        private bool IsSessionRunningLocked()
+        {
+            return string.Equals(_sessionState, SvrFireScenarioValues.SessionStateRunning, StringComparison.Ordinal);
+        }
+
+        private void CompleteSessionLocked(
+            string details,
+            string target,
+            string outcome,
+            float elapsedSeconds,
+            string dataJson)
+        {
+            if (string.Equals(_sessionState, SvrFireScenarioValues.SessionStateComplete, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _sessionState = SvrFireScenarioValues.SessionStateComplete;
+            _phase = SvrFireScenarioValues.PhaseComplete;
+
+            var safeDetails = string.IsNullOrWhiteSpace(details)
+                ? "SVR office fire session completed."
+                : details.Trim();
+            _lastScenarioEvent = safeDetails;
+            AddActionLocked("system", "scenario_end", safeDetails, elapsedSeconds);
+            RecordAuditEventLocked(
+                "system",
+                "scenario_end",
+                "system",
+                string.IsNullOrWhiteSpace(target) ? "scenario" : target,
+                string.IsNullOrWhiteSpace(outcome) ? "completed" : outcome,
+                string.IsNullOrWhiteSpace(dataJson)
+                    ? AuditEventJson.CreateObject(new KeyValuePair<string, string>("details", safeDetails))
+                    : dataJson,
+                elapsedSeconds);
+        }
+
         private void ResetStateLocked()
         {
+            _sessionState = SvrFireScenarioValues.SessionStateReady;
             _phase = SvrFireScenarioValues.PhaseNormal;
             _alarmActive = false;
+            _alarmTriggeredAtSeconds = null;
             _participantLocation = SvrFireScenarioValues.LocationWorkstation;
             _hazardState = SvrFireScenarioValues.HazardNone;
             _coworkerState = SvrFireScenarioValues.CoworkerNearby;
@@ -560,7 +496,6 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             _lastAnnotation = string.Empty;
             _lastAssistantResponse = string.Empty;
             _lastFreeformInput = string.Empty;
-            _scenarioCompletionRequested = false;
             _auditEvents.Clear();
             _actions.Clear();
             _criticalErrorCodes.Clear();

@@ -9,6 +9,10 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
         public const string DefaultScoringVersion = "svr.fire.score.v1";
         public const string DefaultParticipantAlias = "participant-anonymous";
 
+        public const string SessionStateReady = "ready";
+        public const string SessionStateRunning = "running";
+        public const string SessionStateComplete = "complete";
+
         public const string PhaseNormal = "normal";
         public const string PhaseAlarm = "alarm";
         public const string PhaseEvacuation = "evacuation";

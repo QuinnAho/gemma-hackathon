@@ -11,8 +11,10 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
     [RequireComponent(typeof(SimulationConversationDebugManager))]
     public sealed class SimulationConversationDebugOverlay : MonoBehaviour
     {
-        private const float Padding = 16f;
-        private const float HeaderHeight = 28f;
+        private const float Padding = 12f;
+        private const float HeaderHeight = 24f;
+        private const float SectionSpacing = 12f;
+        private const float ItemSpacing = 2f;
 
         private SimulationConversationDebugManager _manager;
         private SimulationConversationDiagnosticsSnapshot _snapshot;
@@ -20,8 +22,11 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
         private Vector2 _runtimeScroll;
         private Vector2 _activityScroll;
         private GUIStyle _headerStyle;
+        private GUIStyle _sectionStyle;
         private GUIStyle _bodyStyle;
         private GUIStyle _monoStyle;
+        private GUIStyle _dimStyle;
+        private GUIStyle _errorStyle;
 
         private void Awake()
         {
@@ -54,7 +59,7 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
 
             DrawPanel(
                 new Rect(Padding * 2f + columnWidth, Padding, columnWidth, contentHeight),
-                "Runtime",
+                "State",
                 DrawRuntimePanel);
 
             DrawPanel(
@@ -67,14 +72,14 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
         {
             GUI.Box(rect, GUIContent.none);
 
-            var titleRect = new Rect(rect.x + 12f, rect.y + 8f, rect.width - 24f, HeaderHeight);
+            var titleRect = new Rect(rect.x + 10f, rect.y + 6f, rect.width - 20f, HeaderHeight);
             GUI.Label(titleRect, title, _headerStyle);
 
             var contentRect = new Rect(
-                rect.x + 12f,
-                rect.y + HeaderHeight + 16f,
-                rect.width - 24f,
-                rect.height - HeaderHeight - 28f);
+                rect.x + 10f,
+                rect.y + HeaderHeight + 10f,
+                rect.width - 20f,
+                rect.height - HeaderHeight - 20f);
 
             GUILayout.BeginArea(contentRect);
             body();
@@ -86,319 +91,338 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             _controlsScroll = GUILayout.BeginScrollView(_controlsScroll);
             var isBusy = _snapshot.TurnState == SimulationTurnLifecycleState.Running ||
                          _snapshot.TurnState == SimulationTurnLifecycleState.Cancelling;
+            var isSessionReady = string.Equals(_snapshot.SessionState, SvrFireScenarioValues.SessionStateReady, StringComparison.Ordinal);
+            var isSessionRunning = string.Equals(_snapshot.SessionState, SvrFireScenarioValues.SessionStateRunning, StringComparison.Ordinal);
+            var isSessionComplete = string.Equals(_snapshot.SessionState, SvrFireScenarioValues.SessionStateComplete, StringComparison.Ordinal);
+            var runtimeReady = _snapshot.RuntimeState == SimulationRuntimeLifecycleState.Ready ||
+                               _snapshot.RuntimeState == SimulationRuntimeLifecycleState.Fallback;
 
-            GUILayout.Label("Session", _headerStyle);
-            DrawStateBadge("Runtime State", DescribeRuntimeState(_snapshot.RuntimeState), GetRuntimeStateColor(_snapshot.RuntimeState));
-            DrawStateBadge("Turn State", DescribeTurnState(_snapshot.TurnState), GetTurnStateColor(_snapshot.TurnState));
-            DrawKeyValue("Requested Mode", SafeValue(_snapshot.RequestedRuntimeMode));
-            DrawKeyValue("Selected Mode", SafeValue(_snapshot.SelectedRuntimeMode));
-            DrawKeyValue("Backend", SafeValue(_snapshot.ActiveBackendName));
-            DrawKeyValue("Session Time", _snapshot.SessionElapsedSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "s");
-            DrawKeyValue(
-                "Turn Counts",
-                _snapshot.StartedTurnCount.ToString(CultureInfo.InvariantCulture) +
-                " started / " +
-                _snapshot.SuccessfulTurnCount.ToString(CultureInfo.InvariantCulture) +
-                " ok / " +
-                _snapshot.FailedTurnCount.ToString(CultureInfo.InvariantCulture) +
-                " failed / " +
-                _snapshot.CancelledTurnCount.ToString(CultureInfo.InvariantCulture) +
-                " cancelled");
-            if (_snapshot.DetachedTurnCount > 0)
-            {
-                DrawKeyValue(
-                    "Detached Turns",
-                    _snapshot.DetachedTurnCount.ToString(CultureInfo.InvariantCulture) +
-                    " background turn(s) still draining after recovery.");
-            }
-            if (!string.IsNullOrWhiteSpace(_snapshot.RecoveryStatus))
-            {
-                DrawKeyValue("Recovery", SafeValue(_snapshot.RecoveryStatus));
-            }
-            if (isBusy)
-            {
-                DrawKeyValue(
-                    "Active Turn",
-                    SafeValue(_snapshot.PendingTurnDescription) +
-                    " (" +
-                    _snapshot.PendingTurnElapsedSeconds.ToString("0.0", CultureInfo.InvariantCulture) +
-                    "s)");
-            }
-            else if (!string.IsNullOrWhiteSpace(_snapshot.LastTurnError))
-            {
-                DrawKeyValue("Last Failure", SafeValue(_snapshot.LastTurnError));
-            }
+            DrawInlineStatus();
 
-            GUILayout.Space(8f);
-            GUILayout.Label("Scenario Controls", _headerStyle);
+            GUILayout.Space(SectionSpacing);
+            DrawSectionHeader("Session");
             var previousEnabledState = GUI.enabled;
-            GUI.enabled = !isBusy;
-
-            if (GUILayout.Button("Trigger Alarm Escalation"))
+            GUI.enabled = !isBusy && runtimeReady && isSessionReady;
+            if (GUILayout.Button("Start Sim"))
             {
-                _manager.RunEventTurn("Routine office activity has escalated into an active fire alarm.");
+                _manager.StartSimulation();
             }
 
-            if (GUILayout.Button("Acknowledge Alarm"))
+            GUILayout.Space(SectionSpacing);
+            DrawSectionHeader("Assessment");
+            GUI.enabled = !isBusy && isSessionRunning;
+
+            if (GUILayout.Button("Trigger Alarm"))
+            {
+                _manager.RunAlarmEscalation();
+            }
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Ack Alarm"))
             {
                 _manager.RunParticipantAction(SvrFireScenarioValues.ActionAcknowledgeAlarm);
             }
-
-            if (GUILayout.Button("Move To Exit A"))
-            {
-                _manager.RunParticipantAction(SvrFireScenarioValues.ActionMoveExitA);
-            }
-
-            if (GUILayout.Button("Move To Exit B"))
-            {
-                _manager.RunParticipantAction(SvrFireScenarioValues.ActionMoveExitB);
-            }
-
             if (GUILayout.Button("Help Coworker"))
             {
                 _manager.RunParticipantAction(SvrFireScenarioValues.ActionHelpCoworker);
             }
+            GUILayout.EndHorizontal();
 
-            if (GUILayout.Button("Request Readiness Summary"))
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Exit A"))
             {
-                _manager.RunUserTurn("Give me the current fire readiness summary.");
+                _manager.RunParticipantAction(SvrFireScenarioValues.ActionMoveExitA);
             }
+            if (GUILayout.Button("Exit B"))
+            {
+                _manager.RunParticipantAction(SvrFireScenarioValues.ActionMoveExitB);
+            }
+            GUILayout.EndHorizontal();
 
-            GUILayout.Space(8f);
-            GUILayout.Label("Manual Input", _headerStyle);
+            GUILayout.Space(SectionSpacing);
+            DrawSectionHeader("Post-Run AI");
+            GUI.enabled = !isBusy && isSessionComplete;
             _manager.CustomInput = GUILayout.TextField(_manager.CustomInput ?? string.Empty);
-
-            if (GUILayout.Button("Run Text Turn"))
+            if (GUILayout.Button("Send"))
             {
                 _manager.RunUserTurn(_manager.CustomInput);
             }
-
-            GUILayout.Space(8f);
-            GUILayout.Label("Voice Path", _headerStyle);
-            DrawKeyValue("Speech Supported", FormatBool(_snapshot.RuntimeCapabilities.SupportsSpeechTranscription));
-            if (!_snapshot.RuntimeCapabilities.SupportsSpeechTranscription)
+            GUI.enabled = previousEnabledState;
+            if (!isSessionComplete)
             {
-                GUILayout.Label(
-                    "Windows/editor stays text-only. Microphone and STT wiring are part of the Quest/Android runtime path.",
-                    _bodyStyle);
+                GUILayout.Label("AI summary/report turns unlock after the deterministic run completes.", _dimStyle);
             }
 
-            GUILayout.Space(8f);
-            GUILayout.Label("Recovery", _headerStyle);
+            GUILayout.Space(SectionSpacing);
+            DrawSectionHeader("Recovery");
+            GUILayout.BeginHorizontal();
             GUI.enabled = _snapshot.CanAbandonTurn;
-            if (GUILayout.Button("Abandon Active Turn"))
+            if (GUILayout.Button("Abandon Turn"))
             {
                 _manager.AbandonActiveTurn();
             }
-
             GUI.enabled = !isBusy;
-            if (GUILayout.Button("Reset Session"))
+            if (GUILayout.Button("Reset"))
             {
                 _manager.ResetSession();
             }
+            GUILayout.EndHorizontal();
             GUI.enabled = previousEnabledState;
 
             GUILayout.EndScrollView();
+        }
+
+        private void DrawInlineStatus()
+        {
+            var isBusy = _snapshot.TurnState == SimulationTurnLifecycleState.Running ||
+                         _snapshot.TurnState == SimulationTurnLifecycleState.Cancelling;
+
+            GUILayout.BeginHorizontal();
+            DrawStateBadge(DescribeRuntimeState(_snapshot.RuntimeState), GetRuntimeStateColor(_snapshot.RuntimeState));
+            DrawStateBadge(DescribeSessionState(_snapshot.SessionState), GetSessionStateColor(_snapshot.SessionState));
+            if (isBusy)
+            {
+                DrawStateBadge(DescribeTurnState(_snapshot.TurnState), GetTurnStateColor(_snapshot.TurnState));
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.Label(FormatTime(_snapshot.SessionElapsedSeconds), _dimStyle);
+            GUILayout.EndHorizontal();
+
+            if (isBusy && !string.IsNullOrWhiteSpace(_snapshot.PendingTurnDescription))
+            {
+                GUILayout.Label(
+                    _snapshot.PendingTurnElapsedSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "s",
+                    _dimStyle);
+            }
+            else if (!string.IsNullOrWhiteSpace(_snapshot.LastTurnError))
+            {
+                GUILayout.Label(TruncateText(_snapshot.LastTurnError, 60), _errorStyle);
+            }
         }
 
         private void DrawRuntimePanel()
         {
             _runtimeScroll = GUILayout.BeginScrollView(_runtimeScroll);
 
-            GUILayout.Label("Health", _headerStyle);
-            DrawStateBadge(
-                "Backend Health",
-                DescribeBackendHealth(_snapshot.BackendHealth),
-                GetBackendHealthColor(_snapshot.BackendHealth));
-            DrawKeyValue("Backend Summary", SafeValue(_snapshot.BackendHealthSummary));
-            DrawStateBadge(
-                "Logger Health",
-                DescribeLoggerHealth(_snapshot.LoggerHealth),
-                GetLoggerHealthColor(_snapshot.LoggerHealth));
-            DrawKeyValue("Logger Error", SafeValue(_snapshot.LoggerLastError));
-
-            GUILayout.Label("Backend", _headerStyle);
-            DrawKeyValue("Backend", SafeValue(_snapshot.ActiveBackendName));
-            DrawKeyValue("Summary", SafeValue(_snapshot.RuntimeSummary));
-            DrawKeyValue("Uses Live Model", FormatBool(_snapshot.RuntimeCapabilities.UsesLiveModel));
-            DrawKeyValue("Target Runtime", FormatBool(_snapshot.RuntimeCapabilities.IsTargetRuntime));
-            DrawKeyValue("Text Completion", FormatBool(_snapshot.RuntimeCapabilities.SupportsTextCompletion));
-            DrawKeyValue("Tool Calling", FormatBool(_snapshot.RuntimeCapabilities.SupportsToolCalling));
-            DrawKeyValue("Speech", FormatBool(_snapshot.RuntimeCapabilities.SupportsSpeechTranscription));
-            DrawKeyValue("Model Source", SafeValue(_snapshot.ModelSource));
-            DrawKeyValue("Model Reference", SafeValue(_snapshot.ModelReference));
-
-            GUILayout.Space(8f);
-            GUILayout.Label("Logger", _headerStyle);
-            DrawKeyValue("Session Id", SafeValue(_snapshot.LoggerSessionId));
-            DrawKeyValue("Verbosity", SafeValue(_snapshot.LoggerVerbosity));
-            DrawKeyValue("Session Directory", SafeValue(_snapshot.LoggerSessionDirectory));
-            DrawKeyValue("Events Path", SafeValue(_snapshot.LoggerEventsPath));
-            DrawKeyValue("Manifest Path", SafeValue(_snapshot.LoggerManifestPath));
-            DrawKeyValue("Written Events", _snapshot.LoggerWrittenEventCount.ToString(CultureInfo.InvariantCulture));
-            DrawKeyValue("Failure Count", _snapshot.LoggerFailureCount.ToString(CultureInfo.InvariantCulture));
-
-            if (_snapshot.BootstrapStatus != null &&
-                _snapshot.BootstrapStatus.State != SimulationRuntimeBootstrapState.Uninitialized)
+            DrawSectionHeader("Backend");
+            GUILayout.BeginHorizontal();
+            DrawStateBadge(DescribeBackendHealth(_snapshot.BackendHealth), GetBackendHealthColor(_snapshot.BackendHealth));
+            if (!string.IsNullOrWhiteSpace(_snapshot.ActiveBackendName) && _snapshot.ActiveBackendName != "Not initialized")
             {
-                GUILayout.Space(8f);
-                GUILayout.Label("Bootstrap", _headerStyle);
-                DrawKeyValue("Bootstrap State", _snapshot.BootstrapStatus.State.ToString());
-                DrawKeyValue("Path Source", SafeValue(_snapshot.BootstrapStatus.ModelPathSource));
-                DrawKeyValue("Model Path", SafeValue(_snapshot.BootstrapStatus.ResolvedModelPath));
-                DrawKeyValue("Health Check", SafeValue(_snapshot.BootstrapStatus.HealthCheckResponse));
-                DrawKeyValue("Bootstrap Error", SafeValue(_snapshot.BootstrapStatus.Error));
+                GUILayout.Label(_snapshot.ActiveBackendName, _bodyStyle);
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+
+            if (_snapshot.RuntimeCapabilities.UsesLiveModel)
+            {
+                DrawCompactCapabilities();
             }
 
-            GUILayout.Space(8f);
-            GUILayout.Label("Simulation State", _headerStyle);
-            DrawKeyValue("Phase", SafeValue(_snapshot.CurrentPhase));
-            DrawKeyValue("Readiness Score", _snapshot.CurrentScore.ToString(CultureInfo.InvariantCulture));
-            DrawKeyValue("Readiness Band", SafeValue(_snapshot.CurrentReadinessBand));
-            DrawKeyValue("Participant Location", SafeValue(_snapshot.ParticipantLocation));
-            DrawKeyValue("Hazard State", SafeValue(_snapshot.HazardState));
-            DrawKeyValue("Coworker State", SafeValue(_snapshot.CoworkerState));
-            DrawKeyValue("Audit Events", _snapshot.AuditEventCount.ToString(CultureInfo.InvariantCulture));
-            DrawKeyValue("Last Participant Action", SafeValue(_snapshot.LastParticipantAction));
-            DrawKeyValue("Last Scenario Event", SafeValue(_snapshot.LastScenarioEvent));
-            DrawKeyValue("Last Annotation", SafeValue(_snapshot.LastAnnotation));
-            DrawKeyValue("Last Freeform Input", SafeValue(_snapshot.LastFreeformInput));
-            DrawKeyValue("Last Assistant Reply", SafeValue(_snapshot.LastAssistantResponse));
-
-            GUILayout.Space(8f);
-            GUILayout.Label("KPIs", _headerStyle);
-            if (_snapshot.KpiSnapshot == null || !_snapshot.KpiSnapshot.HasEntries)
+            if (!string.IsNullOrWhiteSpace(_snapshot.BackendHealthSummary) &&
+                _snapshot.BackendHealth != SimulationBackendHealthState.Healthy)
             {
-                GUILayout.Label("No KPI snapshot available.", _bodyStyle);
+                GUILayout.Label(TruncateText(_snapshot.BackendHealthSummary, 80), _dimStyle);
+            }
+
+            GUILayout.Space(SectionSpacing);
+            DrawSectionHeader("Scenario");
+            DrawCompactRow("Session", DescribeSessionState(_snapshot.SessionState));
+            if (!string.IsNullOrWhiteSpace(_snapshot.CurrentPhase))
+            {
+                DrawCompactRow("Phase", _snapshot.CurrentPhase);
+            }
+            DrawCompactRow("Score", _snapshot.CurrentScore + " (" + SafeValueOrDash(_snapshot.CurrentReadinessBand) + ")");
+            if (!string.IsNullOrWhiteSpace(_snapshot.HazardState))
+            {
+                DrawCompactRow("Hazard", _snapshot.HazardState);
+            }
+            if (!string.IsNullOrWhiteSpace(_snapshot.ParticipantLocation))
+            {
+                DrawCompactRow("Location", _snapshot.ParticipantLocation);
+            }
+            if (!string.IsNullOrWhiteSpace(_snapshot.CoworkerState))
+            {
+                DrawCompactRow("Coworker", _snapshot.CoworkerState);
+            }
+
+            GUILayout.Space(SectionSpacing);
+            DrawSectionHeader("Checklist");
+            if (_snapshot.Checklist.Length == 0)
+            {
+                GUILayout.Label("No items", _dimStyle);
             }
             else
             {
-                for (var i = 0; i < _snapshot.KpiSnapshot.Entries.Count; i++)
+                for (var i = 0; i < _snapshot.Checklist.Length; i++)
                 {
-                    var entry = _snapshot.KpiSnapshot.Entries[i] ?? new SimulationKpiEntry();
-                    DrawKeyValue(
-                        SafeValue(entry.Label),
-                        SafeValue(NormalizeJsonValue(entry.ValueJson)));
+                    var item = _snapshot.Checklist[i] ?? new SimulationChecklistItem();
+                    var checkMark = item.Completed ? "[x]" : "[ ]";
+                    var label = string.IsNullOrWhiteSpace(item.Label) ? "Item " + i : item.Label;
+                    GUILayout.Label(checkMark + " " + label, item.Completed ? _dimStyle : _bodyStyle);
                 }
             }
 
-            GUILayout.Space(8f);
-            GUILayout.Label("Checklist", _headerStyle);
-            for (var i = 0; i < _snapshot.Checklist.Length; i++)
+            if (_snapshot.KpiSnapshot != null && _snapshot.KpiSnapshot.HasEntries)
             {
-                var item = _snapshot.Checklist[i] ?? new SimulationChecklistItem();
-                GUILayout.Label(
-                    (item.Completed ? "[x] " : "[ ] ") +
-                    SafeValue(item.Label) +
-                    " | " +
-                    SafeValue(item.Notes),
-                    _bodyStyle);
+                GUILayout.Space(SectionSpacing);
+                DrawSectionHeader("KPIs");
+                for (var i = 0; i < _snapshot.KpiSnapshot.Entries.Count; i++)
+                {
+                    var entry = _snapshot.KpiSnapshot.Entries[i] ?? new SimulationKpiEntry();
+                    if (!string.IsNullOrWhiteSpace(entry.Label))
+                    {
+                        DrawCompactRow(entry.Label, NormalizeJsonValue(entry.ValueJson));
+                    }
+                }
             }
 
-            GUILayout.Space(8f);
-            GUILayout.Label("Last Turn", _headerStyle);
-            DrawKeyValue("Succeeded", FormatBool(_snapshot.LastTurn != null && _snapshot.LastTurn.Success));
-            DrawKeyValue(
-                "Assistant Reply",
-                SafeValue(_snapshot.LastTurn == null ? string.Empty : _snapshot.LastTurn.FinalAssistantResponse));
-            DrawKeyValue(
-                "Error",
-                SafeValue(_snapshot.LastTurn == null ? string.Empty : _snapshot.LastTurn.Error));
-            if (_snapshot.LastTurn != null)
+            if (_snapshot.LastTurn != null && !string.IsNullOrWhiteSpace(_snapshot.LastTurn.FinalAssistantResponse))
             {
-                for (var i = 0; i < _snapshot.LastTurn.ToolResults.Length; i++)
+                GUILayout.Space(SectionSpacing);
+                DrawSectionHeader("Last Response");
+                GUILayout.Label(TruncateText(_snapshot.LastTurn.FinalAssistantResponse, 200), _bodyStyle);
+                if (_snapshot.LastTurn.ToolResults.Length > 0)
                 {
-                    var toolResult = _snapshot.LastTurn.ToolResults[i] ?? new SimulationToolResult();
-                    GUILayout.Label(
-                        SafeValue(toolResult.Name) +
-                        " | " +
-                        SafeValue(toolResult.Content) +
-                        (toolResult.IsError ? " | error" : string.Empty),
-                        _monoStyle);
+                    GUILayout.Space(ItemSpacing);
+                    for (var i = 0; i < _snapshot.LastTurn.ToolResults.Length; i++)
+                    {
+                        var toolResult = _snapshot.LastTurn.ToolResults[i] ?? new SimulationToolResult();
+                        var toolStyle = toolResult.IsError ? _errorStyle : _monoStyle;
+                        GUILayout.Label(toolResult.Name + (toolResult.IsError ? " (err)" : ""), toolStyle);
+                    }
                 }
             }
 
             GUILayout.EndScrollView();
+        }
+
+        private void DrawCompactCapabilities()
+        {
+            var caps = new System.Text.StringBuilder();
+            if (_snapshot.RuntimeCapabilities.SupportsTextCompletion) caps.Append("txt ");
+            if (_snapshot.RuntimeCapabilities.SupportsToolCalling) caps.Append("tools ");
+            if (_snapshot.RuntimeCapabilities.SupportsSpeechTranscription) caps.Append("stt ");
+            if (_snapshot.RuntimeCapabilities.IsTargetRuntime) caps.Append("target");
+            if (caps.Length > 0)
+            {
+                GUILayout.Label(caps.ToString().Trim(), _dimStyle);
+            }
+        }
+
+        private void DrawCompactRow(string label, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == "-")
+            {
+                return;
+            }
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label + ":", _dimStyle, GUILayout.Width(70));
+            GUILayout.Label(value, _bodyStyle);
+            GUILayout.EndHorizontal();
         }
 
         private void DrawActivityPanel()
         {
             _activityScroll = GUILayout.BeginScrollView(_activityScroll);
 
-            GUILayout.Label("Recent Actions", _headerStyle);
+            DrawSectionHeader("Actions");
             if (_snapshot.Actions.Length == 0)
             {
-                GUILayout.Label("No actions recorded yet.", _bodyStyle);
+                GUILayout.Label("No actions yet", _dimStyle);
             }
             else
             {
-                for (var i = 0; i < _snapshot.Actions.Length; i++)
+                var actionsToShow = Math.Min(_snapshot.Actions.Length, 12);
+                var startIndex = _snapshot.Actions.Length - actionsToShow;
+                for (var i = startIndex; i < _snapshot.Actions.Length; i++)
                 {
                     var action = _snapshot.Actions[i] ?? new SimulationActionRecord();
-                    GUILayout.Label(
-                        action.OccurredAtSeconds.ToString("0.0", CultureInfo.InvariantCulture) +
-                        "s | " +
-                        DescribeActor(action.Actor) +
-                        " | " +
-                        DescribeAction(action.Verb) +
-                        " | " +
-                        SafeValue(action.Details),
-                        _monoStyle);
+                    var timeStr = action.OccurredAtSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+                    var actorStr = DescribeActorShort(action.Actor);
+                    var actionStr = DescribeAction(action.Verb);
+                    GUILayout.Label(timeStr + "s " + actorStr + " " + actionStr, _monoStyle);
                 }
             }
 
-            GUILayout.Space(8f);
-            GUILayout.Label("Conversation History", _headerStyle);
+            GUILayout.Space(SectionSpacing);
+            DrawSectionHeader("Conversation");
             if (_snapshot.History.Length == 0)
             {
-                GUILayout.Label("No committed conversation history yet.", _bodyStyle);
+                GUILayout.Label("No messages yet", _dimStyle);
             }
             else
             {
-                for (var i = 0; i < _snapshot.History.Length; i++)
+                var historyToShow = Math.Min(_snapshot.History.Length, 8);
+                var startIndex = _snapshot.History.Length - historyToShow;
+                for (var i = startIndex; i < _snapshot.History.Length; i++)
                 {
                     var message = _snapshot.History[i] ?? new ConversationMessage();
-                    GUILayout.Label(
-                        DescribeMessageRole(message.Role) + ": " + SafeValue(message.Content),
-                        _bodyStyle);
+                    var rolePrefix = DescribeMessageRoleShort(message.Role);
+                    var content = TruncateText(message.Content ?? string.Empty, 100);
+                    GUILayout.Label(rolePrefix + " " + content, _bodyStyle);
                 }
             }
 
-            GUILayout.Space(8f);
-            GUILayout.Label("Trace", _headerStyle);
-            if (_snapshot.TraceEntries.Length == 0)
+            if (_snapshot.TraceEntries.Length > 0)
             {
-                GUILayout.Label("No trace entries recorded yet.", _bodyStyle);
-            }
-            else
-            {
-                for (var i = 0; i < _snapshot.TraceEntries.Length; i++)
+                GUILayout.Space(SectionSpacing);
+                DrawSectionHeader("Trace");
+                var traceToShow = Math.Min(_snapshot.TraceEntries.Length, 6);
+                var startIndex = _snapshot.TraceEntries.Length - traceToShow;
+                for (var i = startIndex; i < _snapshot.TraceEntries.Length; i++)
                 {
                     var entry = _snapshot.TraceEntries[i] ?? new SimulationConversationTraceEntry();
-                    GUILayout.Label(
-                        SafeValue(entry.TimestampUtc) +
-                        " | " +
-                        DescribeTraceKind(entry.Kind) +
-                        " | " +
-                        SafeValue(entry.Content),
-                        _monoStyle);
+                    var kindStr = DescribeTraceKindShort(entry.Kind);
+                    var content = TruncateText(entry.Content ?? string.Empty, 60);
+                    GUILayout.Label(kindStr + " " + content, _monoStyle);
                 }
             }
 
             GUILayout.EndScrollView();
         }
 
-        private void DrawKeyValue(string label, string value)
+        private void DrawSectionHeader(string title)
         {
-            GUILayout.Label(label + ": " + SafeValue(value), _bodyStyle);
+            GUILayout.Label(title, _sectionStyle);
         }
 
-        private void DrawStateBadge(string label, string value, Color color)
+        private void DrawStateBadge(string value, Color color)
         {
             var previousColor = GUI.color;
             GUI.color = color;
-            GUILayout.Box(label + ": " + SafeValue(value), GUILayout.ExpandWidth(true));
+            GUILayout.Box(value, GUILayout.ExpandWidth(false));
             GUI.color = previousColor;
+        }
+
+        private static string FormatTime(float seconds)
+        {
+            if (seconds < 60f)
+            {
+                return seconds.ToString("0", CultureInfo.InvariantCulture) + "s";
+            }
+            var minutes = (int)(seconds / 60f);
+            var remainingSeconds = (int)(seconds % 60f);
+            return minutes + ":" + remainingSeconds.ToString("00");
+        }
+
+        private static string TruncateText(string text, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return string.Empty;
+            }
+            text = text.Replace("\n", " ").Replace("\r", " ");
+            if (text.Length <= maxLength)
+            {
+                return text;
+            }
+            return text.Substring(0, maxLength - 3) + "...";
+        }
+
+        private static string SafeValueOrDash(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "-" : value;
         }
 
         private static string DescribeRuntimeState(SimulationRuntimeLifecycleState state)
@@ -469,6 +493,21 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             }
         }
 
+        private static string DescribeSessionState(string state)
+        {
+            if (string.Equals(state, SvrFireScenarioValues.SessionStateRunning, StringComparison.Ordinal))
+            {
+                return "Running";
+            }
+
+            if (string.Equals(state, SvrFireScenarioValues.SessionStateComplete, StringComparison.Ordinal))
+            {
+                return "Complete";
+            }
+
+            return "Ready";
+        }
+
         private static Color GetRuntimeStateColor(SimulationRuntimeLifecycleState state)
         {
             switch (state)
@@ -484,6 +523,21 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
                 default:
                     return new Color(0.7f, 0.7f, 0.7f);
             }
+        }
+
+        private static Color GetSessionStateColor(string state)
+        {
+            if (string.Equals(state, SvrFireScenarioValues.SessionStateRunning, StringComparison.Ordinal))
+            {
+                return new Color(0.35f, 0.7f, 0.35f);
+            }
+
+            if (string.Equals(state, SvrFireScenarioValues.SessionStateComplete, StringComparison.Ordinal))
+            {
+                return new Color(0.25f, 0.55f, 0.85f);
+            }
+
+            return new Color(0.7f, 0.7f, 0.7f);
         }
 
         private static Color GetBackendHealthColor(SimulationBackendHealthState state)
@@ -537,24 +591,23 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             }
         }
 
-        private static string DescribeActor(string actor)
+        private static string DescribeActorShort(string actor)
         {
             switch (actor)
             {
                 case "participant":
-                    return "Participant";
+                    return "[P]";
                 case "user":
-                    return "Trainee";
+                    return "[U]";
                 case "ai_tool":
-                    return "AI Tool";
                 case "assistant":
-                    return "AI";
+                    return "[A]";
                 case "tool":
-                    return "Tool";
+                    return "[T]";
                 case "system":
-                    return "System";
+                    return "[S]";
                 default:
-                    return SafeValue(actor);
+                    return "[?]";
             }
         }
 
@@ -566,22 +619,12 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
                     return "initialized";
                 case "reset":
                     return "reset";
-                case "update_score":
-                    return "updated score";
                 case "scenario_start":
                     return "started session";
-                case "scenario_event":
-                    return "recorded event";
-                case "prompt_participant":
-                    return "prompted participant";
-                case "change_environment_cue":
-                    return "changed environment";
-                case "annotate_context":
-                    return "recorded annotation";
-                case "transition_phase":
-                    return "transitioned phase";
-                case "request_end_scenario":
-                    return "requested completion";
+                case "scenario_end":
+                    return "ended session";
+                case "alarm_triggered":
+                    return "triggered alarm";
                 case "critical_error":
                     return "recorded critical error";
                 case "acknowledge_alarm":
@@ -609,45 +652,45 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             }
         }
 
-        private static string DescribeMessageRole(string role)
+        private static string DescribeMessageRoleShort(string role)
         {
             switch (role)
             {
                 case "user":
-                    return "User";
+                    return ">";
                 case "assistant":
-                    return "Assistant";
+                    return "<";
                 case "system":
-                    return "System";
+                    return "#";
                 case "tool":
-                    return "Tool";
+                    return "*";
                 default:
-                    return SafeValue(role);
+                    return "?";
             }
         }
 
-        private static string DescribeTraceKind(SimulationConversationTraceKind kind)
+        private static string DescribeTraceKindShort(SimulationConversationTraceKind kind)
         {
             switch (kind)
             {
                 case SimulationConversationTraceKind.TurnInput:
-                    return "Turn Input";
+                    return "IN";
                 case SimulationConversationTraceKind.StateSnapshot:
-                    return "State Snapshot";
+                    return "ST";
                 case SimulationConversationTraceKind.RequestMessagesJson:
-                    return "Prompt Payload";
+                    return "RQ";
                 case SimulationConversationTraceKind.CompletionJson:
-                    return "Completion Payload";
+                    return "CP";
                 case SimulationConversationTraceKind.FunctionCall:
-                    return "Function Call";
+                    return "FN";
                 case SimulationConversationTraceKind.ToolResult:
-                    return "Tool Result";
+                    return "TR";
                 case SimulationConversationTraceKind.AssistantResponse:
-                    return "Assistant Response";
+                    return "AS";
                 case SimulationConversationTraceKind.Error:
-                    return "Error";
+                    return "ER";
                 default:
-                    return kind.ToString();
+                    return "??";
             }
         }
 
@@ -660,22 +703,37 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
 
             _headerStyle = new GUIStyle(GUI.skin.label);
             _headerStyle.fontStyle = FontStyle.Bold;
-            _headerStyle.fontSize = 13;
-            _headerStyle.wordWrap = true;
+            _headerStyle.fontSize = 14;
+            _headerStyle.wordWrap = false;
+
+            _sectionStyle = new GUIStyle(GUI.skin.label);
+            _sectionStyle.fontStyle = FontStyle.Bold;
+            _sectionStyle.fontSize = 11;
+            _sectionStyle.wordWrap = false;
+            _sectionStyle.normal.textColor = new Color(0.8f, 0.8f, 0.8f);
 
             _bodyStyle = new GUIStyle(GUI.skin.label);
             _bodyStyle.wordWrap = true;
             _bodyStyle.fontSize = 11;
 
             _monoStyle = new GUIStyle(_bodyStyle);
-            _monoStyle.wordWrap = true;
+            _monoStyle.wordWrap = false;
+            _monoStyle.fontSize = 10;
+
+            _dimStyle = new GUIStyle(_bodyStyle);
+            _dimStyle.normal.textColor = new Color(0.6f, 0.6f, 0.6f);
+            _dimStyle.fontSize = 10;
+
+            _errorStyle = new GUIStyle(_bodyStyle);
+            _errorStyle.normal.textColor = new Color(0.95f, 0.4f, 0.35f);
+            _errorStyle.fontSize = 10;
         }
 
         private static string NormalizeJsonValue(string valueJson)
         {
             if (string.IsNullOrWhiteSpace(valueJson))
             {
-                return string.Empty;
+                return "-";
             }
 
             var trimmed = valueJson.Trim();
@@ -687,14 +745,9 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             return trimmed;
         }
 
-        private static string FormatBool(bool value)
-        {
-            return value ? "yes" : "no";
-        }
-
         private static string SafeValue(string value)
         {
-            return string.IsNullOrWhiteSpace(value) ? "(none)" : value;
+            return string.IsNullOrWhiteSpace(value) ? "-" : value;
         }
     }
 }

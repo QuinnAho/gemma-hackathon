@@ -467,7 +467,7 @@ namespace GemmaHackathon.SimulationFramework
 
             _status.HealthCheckRawJson = rawJson ?? string.Empty;
 
-            var response = CactusCompletionResponse.Parse(rawJson);
+            var response = SimulationCompletionResponse.Parse(rawJson);
             if (!response.ParseSucceeded || !response.Success)
             {
                 throw new InvalidOperationException(

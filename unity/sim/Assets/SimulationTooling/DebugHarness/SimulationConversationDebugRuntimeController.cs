@@ -28,6 +28,10 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
 
     internal sealed class SimulationConversationDebugRuntimeController : IDisposable
     {
+        private const string DeterministicAlarmHazardState = SvrFireScenarioValues.HazardAlarmAndSmokeExitA;
+        private const string DeterministicAlarmAnnouncement =
+            "Fire alarm active. Smoke is blocking Exit A. Exit B remains available. The nearby coworker may need assistance.";
+
         private static readonly IReadOnlyList<SimulationChecklistItem> EmptyChecklist =
             Array.Empty<SimulationChecklistItem>();
         private static readonly IReadOnlyList<SimulationActionRecord> EmptyActions =
@@ -40,8 +44,6 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
         private readonly SimulationConversationDebugRuntimeConfiguration _configuration;
         private readonly ConcurrentQueue<PendingTraceEntry> _pendingTraceEntries =
             new ConcurrentQueue<PendingTraceEntry>();
-        private readonly ConcurrentQueue<MainThreadToolExecutionRequest> _pendingToolExecutionRequests =
-            new ConcurrentQueue<MainThreadToolExecutionRequest>();
         private readonly List<DetachedTurnOperation> _detachedTurnOperations =
             new List<DetachedTurnOperation>();
         private readonly List<SimulationConversationTraceEntry> _traceEntries =
@@ -51,14 +53,16 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
         private SvrFireScenarioState _scenarioState;
         private SvrFireScenarioStateProvider _stateProvider;
         private SimulationConversationManager _conversationManager;
+        private SimulationConversationManagerOptions _conversationOptions;
         private SimulationRuntimeBootstrapService _cactusBootstrapService;
         private ISimulationRunLogger _runLogger;
         private IDisposable _activeRuntimeResource;
         private SimulationConversationTurnResult _lastTurnResult;
         private Task<SimulationConversationTurnResult> _pendingTurnTask;
-        private MainThreadSimulationToolExecutor _toolExecutor;
         private DateTime _pendingTurnStartedUtc;
         private DateTime _sessionStartedUtc;
+        private bool _sessionClockStarted;
+        private float? _completedSessionElapsedSeconds;
         private string _pendingTurnDescription = string.Empty;
         private string _lastTurnError = string.Empty;
         private string _runtimeSummary = string.Empty;
@@ -68,7 +72,6 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
         private SimulationRuntimeLifecycleState _runtimeLifecycleState = SimulationRuntimeLifecycleState.Uninitialized;
         private SimulationTurnLifecycleState _turnLifecycleState = SimulationTurnLifecycleState.Idle;
         private SimulationRuntimeCapabilities _runtimeCapabilities = new SimulationRuntimeCapabilities();
-        private volatile bool _acceptToolExecutionRequests = true;
         private int _runtimeGeneration;
         private int _startedTurnCount;
         private int _successfulTurnCount;
@@ -100,59 +103,21 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             }
 
             _runtimeGeneration++;
-            _sessionStartedUtc = DateTime.UtcNow;
-            _startedTurnCount = 0;
-            _successfulTurnCount = 0;
-            _failedTurnCount = 0;
-            _lastTurnError = string.Empty;
-            _runtimeLifecycleState = SimulationRuntimeLifecycleState.Loading;
-            _turnLifecycleState = SimulationTurnLifecycleState.Idle;
-            _loggerInitializationError = string.Empty;
-            _scenarioState = new SvrFireScenarioState(HandleAuditEvent);
-            _stateProvider = new SvrFireScenarioStateProvider(_scenarioState, GetElapsedSeconds);
-
-            InitializeRunLogger();
-            _scenarioState.ConfigureSession(CreateAuditSessionRecord(), GetElapsedSeconds());
-
-            var toolRegistry = new SimulationToolRegistry();
-            toolRegistry.Register(new EscalateHazardTool(_scenarioState, GetElapsedSeconds));
-            toolRegistry.Register(new PromptParticipantTool(_scenarioState, GetElapsedSeconds));
-            toolRegistry.Register(new ChangeEnvironmentCueTool(_scenarioState, GetElapsedSeconds));
-            toolRegistry.Register(new AnnotateContextTool(_scenarioState, GetElapsedSeconds));
-            toolRegistry.Register(new TransitionPhaseTool(_scenarioState, GetElapsedSeconds));
-            toolRegistry.Register(new RequestEndScenarioTool(_scenarioState, GetElapsedSeconds));
-
-            var conversationOptions = new SimulationConversationManagerOptions();
-            conversationOptions.SystemPrompt = BuildSvrSystemPrompt();
-            conversationOptions.CompletionOptionsJson = SimulationConversationManagerOptions.FastTurnCompletionOptionsJson;
-            conversationOptions.FollowUpCompletionOptionsJson = SimulationConversationManagerOptions.FastTurnFollowUpCompletionOptionsJson;
-            conversationOptions.TraceSink = CreateTraceSink(_runtimeGeneration);
-            conversationOptions.ToolExecutor = ResolveToolExecutor();
-            conversationOptions.RunLogger = _runLogger;
-
-            var completionModel = BuildCompletionModel();
-            _conversationManager = new SimulationConversationManager(
-                completionModel,
-                _stateProvider,
-                toolRegistry,
-                conversationOptions);
-
-            _lastTurnResult = new SimulationConversationTurnResult();
-            _lastTurnResult.Success = true;
-            _lastTurnResult.FinalAssistantResponse = _runtimeCapabilities.UsesLiveModel
-                ? "SVR fire scenario runtime initialized."
-                : "SVR fire scenario ready.";
+            ResetRuntimeLifecycle();
+            InitializeScenarioRuntime();
+            _conversationOptions = CreatePostRunConversationOptions();
+            _conversationManager = CreatePostRunConversationManager(BuildCompletionModel());
+            _lastTurnResult = CreateReadyResult();
             _scenarioState.UpdateRuntimeBackend(_activeBackendName);
-            _scenarioState.SetLastAssistantResponse(_lastTurnResult.FinalAssistantResponse);
-            _scenarioState.RecordRuntimeNote("system", "initialize", "SVR office fire scenario initialized.", GetElapsedSeconds());
+            _scenarioState.RecordRuntimeNote("system", "initialize", "SVR office fire scenario runtime initialized.", 0f);
         }
 
         public void Tick()
         {
-            DrainPendingToolExecutionRequests();
             DrainPendingTraceEntries();
             CompletePendingTurnIfReady();
             DrainDetachedTurnOperations();
+            UpdateSessionClockStateFromScenario();
         }
 
         public SimulationConversationDiagnosticsSnapshot CaptureDiagnosticsSnapshot()
@@ -174,6 +139,9 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             {
                 RuntimeState = _runtimeLifecycleState,
                 TurnState = _turnLifecycleState,
+                SessionState = string.IsNullOrWhiteSpace(scenarioStatus.SessionState)
+                    ? SvrFireScenarioValues.SessionStateReady
+                    : scenarioStatus.SessionState,
                 RequestedRuntimeMode = _configuration.RequestedRuntimeMode.ToString(),
                 SelectedRuntimeMode = ResolveSelectedRuntimeMode().ToString(),
                 ActiveBackendName = string.IsNullOrWhiteSpace(_activeBackendName) ? "Not initialized" : _activeBackendName,
@@ -234,10 +202,28 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
                 return _lastTurnResult;
             }
 
+            if (!IsSessionComplete())
+            {
+                return CreateBlockedTurnResult("Post-run AI is only available after the assessment is complete.");
+            }
+
             _scenarioState.SetLastFreeformInput(text);
             StartConversationTurn(
                 () => _conversationManager.ProcessUserText(text),
-                "Processing trainee input on the active backend.");
+                "Processing post-run AI request on the active backend.");
+            return _lastTurnResult;
+        }
+
+        public SimulationConversationTurnResult StartSimulation()
+        {
+            InitializeIfNeeded();
+
+            if (!CanStartSimulation())
+            {
+                return _lastTurnResult;
+            }
+
+            BeginNewAssessmentSession();
             return _lastTurnResult;
         }
 
@@ -245,32 +231,46 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
         {
             InitializeIfNeeded();
 
-            if (IsTurnInProgress || action == null || string.IsNullOrWhiteSpace(action.ActionCode))
+            if (IsTurnInProgress || action == null || string.IsNullOrWhiteSpace(action.ActionCode) || !IsSessionRunning())
             {
                 return _lastTurnResult;
             }
 
             var recordedAction = _scenarioState.RecordParticipantAction(action, GetElapsedSeconds());
-            var actionDescription = _scenarioState.DescribeParticipantAction(recordedAction);
-            StartConversationTurn(
-                () => _conversationManager.ProcessSimulationEvent(actionDescription),
-                "Processing participant action on the active backend.");
-            return _lastTurnResult;
-        }
-
-        public SimulationConversationTurnResult RunEventTurn(string eventDescription)
-        {
-            InitializeIfNeeded();
-
-            if (IsTurnInProgress || string.IsNullOrWhiteSpace(eventDescription))
+            if (recordedAction == null)
             {
                 return _lastTurnResult;
             }
 
-            _scenarioState.RecordScenarioEvent(eventDescription, GetElapsedSeconds());
-            StartConversationTurn(
-                () => _conversationManager.ProcessSimulationEvent(eventDescription),
-                "Processing simulation event on the active backend.");
+            UpdateSessionClockStateFromScenario();
+            _turnLifecycleState = SimulationTurnLifecycleState.Idle;
+            _lastTurnError = string.Empty;
+            _lastTurnResult = CreateLocalResult(string.Empty);
+            return _lastTurnResult;
+        }
+
+        public SimulationConversationTurnResult RunAlarmEscalation()
+        {
+            InitializeIfNeeded();
+
+            if (IsTurnInProgress || !IsSessionRunning())
+            {
+                return _lastTurnResult;
+            }
+
+            var elapsedSeconds = GetElapsedSeconds();
+            if (!_scenarioState.TriggerAlarmEscalation(
+                DeterministicAlarmHazardState,
+                DeterministicAlarmAnnouncement,
+                elapsedSeconds))
+            {
+                return _lastTurnResult;
+            }
+
+            UpdateSessionClockStateFromScenario();
+            _turnLifecycleState = SimulationTurnLifecycleState.Idle;
+            _lastTurnError = string.Empty;
+            _lastTurnResult = CreateLocalResult(string.Empty);
             return _lastTurnResult;
         }
 
@@ -283,22 +283,30 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
 
             InitializeIfNeeded();
 
+            EndRunLoggerSession("manual_reset");
+            DisposeRunLogger();
+            if (_conversationOptions != null)
+            {
+                _conversationOptions.RunLogger = null;
+            }
+
             _conversationManager.ClearHistory();
             _historySnapshot.Clear();
             _traceEntries.Clear();
             ClearPendingTraceEntries();
-            _sessionStartedUtc = DateTime.UtcNow;
-            _scenarioState.ResetForNewSession(GetElapsedSeconds());
+            ResetSessionClock();
+            _startedTurnCount = 0;
+            _successfulTurnCount = 0;
+            _failedTurnCount = 0;
+            _cancelledTurnCount = 0;
+            _scenarioState.ConfigureSession(CreateAuditSessionRecord());
+            _scenarioState.ResetToReadyState();
             _turnLifecycleState = SimulationTurnLifecycleState.Idle;
             _lastTurnError = string.Empty;
             _recoveryStatus = string.Empty;
             _loggerInitializationError = string.Empty;
-            _lastTurnResult = new SimulationConversationTurnResult();
-            _lastTurnResult.Success = true;
-            _lastTurnResult.FinalAssistantResponse = "New SVR fire session started.";
-            _scenarioState.SetLastAssistantResponse(_lastTurnResult.FinalAssistantResponse);
-            _scenarioState.RecordRuntimeNote("system", "reset", "Conversation history cleared.", GetElapsedSeconds());
-            LogSessionEvent("reset", "{\"reason\":\"manual_reset\"}");
+            _lastTurnResult = CreateReadyResult();
+            _scenarioState.RecordRuntimeNote("system", "reset", "Assessment reset and returned to ready state.", 0f);
         }
 
         public bool AbandonActiveTurn()
@@ -347,8 +355,6 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
 
         public void Dispose()
         {
-            _acceptToolExecutionRequests = false;
-            FailPendingToolExecutionRequests("Tool execution dispatcher is shutting down.");
             EndRunLoggerSession("destroyed");
             DisposeRunLogger();
             DisposeRuntimeResource();
@@ -362,6 +368,16 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
 
         private float GetElapsedSeconds()
         {
+            if (!_sessionClockStarted)
+            {
+                return 0f;
+            }
+
+            if (_completedSessionElapsedSeconds.HasValue)
+            {
+                return _completedSessionElapsedSeconds.Value;
+            }
+
             return Math.Max(0f, (float)(DateTime.UtcNow - _sessionStartedUtc).TotalSeconds);
         }
 
@@ -382,9 +398,204 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             return Math.Max(0f, (float)(DateTime.UtcNow - _pendingTurnStartedUtc).TotalSeconds);
         }
 
+        private void ResetSessionClock()
+        {
+            _sessionStartedUtc = default(DateTime);
+            _sessionClockStarted = false;
+            _completedSessionElapsedSeconds = null;
+        }
+
+        private void StartSessionClock()
+        {
+            _sessionStartedUtc = DateTime.UtcNow;
+            _sessionClockStarted = true;
+            _completedSessionElapsedSeconds = null;
+        }
+
+        private void FreezeSessionClockIfRunning()
+        {
+            if (!_sessionClockStarted || _completedSessionElapsedSeconds.HasValue)
+            {
+                return;
+            }
+
+            _completedSessionElapsedSeconds = Math.Max(0f, (float)(DateTime.UtcNow - _sessionStartedUtc).TotalSeconds);
+        }
+
+        private void UpdateSessionClockStateFromScenario()
+        {
+            if (!IsSessionComplete())
+            {
+                return;
+            }
+
+            FreezeSessionClockIfRunning();
+        }
+
+        private void ResetRuntimeLifecycle()
+        {
+            ResetSessionClock();
+            _startedTurnCount = 0;
+            _successfulTurnCount = 0;
+            _failedTurnCount = 0;
+            _lastTurnError = string.Empty;
+            _runtimeLifecycleState = SimulationRuntimeLifecycleState.Loading;
+            _turnLifecycleState = SimulationTurnLifecycleState.Idle;
+            _loggerInitializationError = string.Empty;
+        }
+
+        private void InitializeScenarioRuntime()
+        {
+            _scenarioState = new SvrFireScenarioState(HandleAuditEvent);
+            _stateProvider = new SvrFireScenarioStateProvider(_scenarioState, GetElapsedSeconds);
+            _scenarioState.ConfigureSession(CreateAuditSessionRecord());
+        }
+
+        private SimulationConversationManagerOptions CreatePostRunConversationOptions()
+        {
+            return new SimulationConversationManagerOptions
+            {
+                SystemPrompt = BuildSvrSystemPrompt(),
+                CompletionOptionsJson = SimulationConversationManagerOptions.FastTurnCompletionOptionsJson,
+                FollowUpCompletionOptionsJson = SimulationConversationManagerOptions.FastTurnFollowUpCompletionOptionsJson,
+                MaxToolRoundTrips = 0,
+                MaxPromptHistoryMessages = 6,
+                PromptStateOptions = new SimulationPromptStateOptions
+                {
+                    UseCompactJson = true,
+                    IncludeChecklist = true,
+                    IncludeRecentActions = true,
+                    MaxChecklistItems = 4,
+                    MaxRecentActions = 4
+                },
+                TraceSink = CreateTraceSink(_runtimeGeneration),
+                RunLogger = null
+            };
+        }
+
+        private SimulationConversationManager CreatePostRunConversationManager(ISimulationCompletionModel completionModel)
+        {
+            return new SimulationConversationManager(
+                completionModel,
+                _stateProvider,
+                null,
+                _conversationOptions);
+        }
+
+        private bool CanStartSimulation()
+        {
+            if (IsTurnInProgress || _scenarioState == null)
+            {
+                return false;
+            }
+
+            if (_runtimeLifecycleState != SimulationRuntimeLifecycleState.Ready &&
+                _runtimeLifecycleState != SimulationRuntimeLifecycleState.Fallback)
+            {
+                return false;
+            }
+
+            return string.Equals(GetSessionState(), SvrFireScenarioValues.SessionStateReady, StringComparison.Ordinal);
+        }
+
+        private string GetSessionState()
+        {
+            if (_stateProvider == null)
+            {
+                return SvrFireScenarioValues.SessionStateReady;
+            }
+
+            try
+            {
+                var status = _stateProvider.CaptureStatus();
+                if (status == null || string.IsNullOrWhiteSpace(status.SessionState))
+                {
+                    return SvrFireScenarioValues.SessionStateReady;
+                }
+
+                return status.SessionState;
+            }
+            catch
+            {
+                return SvrFireScenarioValues.SessionStateReady;
+            }
+        }
+
+        private bool IsSessionRunning()
+        {
+            return string.Equals(GetSessionState(), SvrFireScenarioValues.SessionStateRunning, StringComparison.Ordinal);
+        }
+
+        private bool IsSessionComplete()
+        {
+            return string.Equals(GetSessionState(), SvrFireScenarioValues.SessionStateComplete, StringComparison.Ordinal);
+        }
+
+        private void BeginNewAssessmentSession()
+        {
+            EndRunLoggerSession("restart");
+            DisposeRunLogger();
+            ResetSessionClock();
+            StartSessionClock();
+            InitializeRunLogger();
+            if (_conversationOptions != null)
+            {
+                _conversationOptions.RunLogger = _runLogger;
+            }
+
+            _conversationManager.ClearHistory();
+            _historySnapshot.Clear();
+            _traceEntries.Clear();
+            ClearPendingTraceEntries();
+            _startedTurnCount = 0;
+            _successfulTurnCount = 0;
+            _failedTurnCount = 0;
+            _cancelledTurnCount = 0;
+            _scenarioState.ConfigureSession(CreateAuditSessionRecord());
+            _scenarioState.UpdateRuntimeBackend(_activeBackendName);
+            _scenarioState.StartSession(GetElapsedSeconds());
+            _turnLifecycleState = SimulationTurnLifecycleState.Idle;
+            _lastTurnError = string.Empty;
+            _recoveryStatus = string.Empty;
+            _lastTurnResult = CreateLocalResult(string.Empty);
+            LogRuntimeEvent("backend_ready", _runtimeLifecycleState == SimulationRuntimeLifecycleState.Fallback);
+        }
+
+        private static SimulationConversationTurnResult CreateReadyResult()
+        {
+            return new SimulationConversationTurnResult
+            {
+                Success = true,
+                FinalAssistantResponse = "SVR fire scenario ready. Press Start Sim to begin."
+            };
+        }
+
+        private SimulationConversationTurnResult CreateLocalResult(string response)
+        {
+            return new SimulationConversationTurnResult
+            {
+                Success = true,
+                FinalAssistantResponse = response ?? string.Empty
+            };
+        }
+
+        private SimulationConversationTurnResult CreateBlockedTurnResult(string message)
+        {
+            var blockedResult = new SimulationConversationTurnResult
+            {
+                Success = false,
+                Error = message ?? string.Empty
+            };
+            _lastTurnResult = blockedResult;
+            _lastTurnError = blockedResult.Error;
+            _turnLifecycleState = SimulationTurnLifecycleState.Failed;
+            return blockedResult;
+        }
+
         private void ResetCurrentRuntimeStateForRecovery()
         {
             _conversationManager = null;
+            _conversationOptions = null;
             _stateProvider = null;
             _scenarioState = null;
             _cactusBootstrapService = null;
@@ -403,6 +614,7 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             _historySnapshot.Clear();
             _traceEntries.Clear();
             ClearPendingTraceEntries();
+            ResetSessionClock();
         }
 
         private void ApplyTurnResult(SimulationConversationTurnResult result)
@@ -464,9 +676,7 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
 
             if (_runLogger == null)
             {
-                return _conversationManager == null
-                    ? SimulationLoggerHealthState.Uninitialized
-                    : SimulationLoggerHealthState.Error;
+                return SimulationLoggerHealthState.Uninitialized;
             }
 
             if (diagnostics == null)
@@ -503,7 +713,9 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
                 ScenarioVariant = SvrFireScenarioValues.DefaultVariantId,
                 RubricVersion = SvrFireScenarioValues.DefaultRubricVersion,
                 ScoringVersion = SvrFireScenarioValues.DefaultScoringVersion,
-                RuntimeBackend = ResolveSelectedRuntimeMode().ToString(),
+                RuntimeBackend = string.IsNullOrWhiteSpace(_activeBackendName)
+                    ? ResolveSelectedRuntimeMode().ToString()
+                    : _activeBackendName,
                 SessionPhase = "baseline"
             };
         }
@@ -533,11 +745,12 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
         private static string BuildSvrSystemPrompt()
         {
             return
-                "You are an AI safety-readiness orchestrator for an office fire evacuation scenario. " +
+                "You are an AI safety-readiness assistant for an office fire evacuation scenario. " +
                 "Use the current simulation state JSON as the source of truth. " +
-                "Your job is to escalate the scenario, prompt the participant, and annotate useful context through tools. " +
+                "The scored assessment run is deterministic, so do not coach the trainee and do not mutate scenario truth. " +
+                "When the session is complete, focus on grounded after-action summaries based only on deterministic outputs. " +
                 "Do not assign score, do not declare checklist completion, and do not author critical failures directly. " +
-                "Prefer concise tool-first turns. Keep any assistant response under 50 words.";
+                "No tool calls are available in this post-run report path. Keep responses concise.";
         }
 
         private SimulationBackendHealthState ResolveBackendHealthState(
@@ -690,9 +903,9 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
                 _activeModelReference = SanitizeModelReference(bridgeModel.ResolvedModelIdentifierOrPath);
                 _runtimeSummary =
                     bridgeModel.ReadySummary +
-                    " This is the editor validation path, so speech transcription stays disabled here.";
+                    " This is the editor validation path, so speech transcription stays disabled here and post-run AI stays on the no-tool narrative path.";
                 _runtimeCapabilities.SupportsTextCompletion = true;
-                _runtimeCapabilities.SupportsToolCalling = true;
+                _runtimeCapabilities.SupportsToolCalling = false;
                 _runtimeCapabilities.SupportsSpeechTranscription = false;
                 _runtimeCapabilities.UsesLiveModel = true;
                 _runtimeCapabilities.IsTargetRuntime = false;
@@ -746,9 +959,10 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
                     "Using a real Cactus session. Model source: " +
                     SafeValue(_cactusBootstrapService.Status.ModelPathSource) +
                     ". Health check reply: " +
-                    SafeValue(_cactusBootstrapService.Status.HealthCheckResponse);
+                    SafeValue(_cactusBootstrapService.Status.HealthCheckResponse) +
+                    ". Post-run AI remains on the no-tool narrative path.";
                 _runtimeCapabilities.SupportsTextCompletion = true;
-                _runtimeCapabilities.SupportsToolCalling = true;
+                _runtimeCapabilities.SupportsToolCalling = false;
                 _runtimeCapabilities.SupportsSpeechTranscription = true;
                 _runtimeCapabilities.UsesLiveModel = true;
                 _runtimeCapabilities.IsTargetRuntime = true;
@@ -797,7 +1011,7 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             _activeModelReference = string.Empty;
             _runtimeSummary = reason;
             _runtimeCapabilities.SupportsTextCompletion = true;
-            _runtimeCapabilities.SupportsToolCalling = true;
+            _runtimeCapabilities.SupportsToolCalling = false;
             _runtimeCapabilities.SupportsSpeechTranscription = false;
             _runtimeCapabilities.UsesLiveModel = false;
             _runtimeCapabilities.IsTargetRuntime = false;
@@ -1136,66 +1350,6 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             }
         }
 
-        private ISimulationToolExecutor ResolveToolExecutor()
-        {
-            if (_toolExecutor == null)
-            {
-                _toolExecutor = new MainThreadSimulationToolExecutor(
-                    _configuration.UnityThreadId,
-                    EnqueueToolExecutionRequest,
-                    IsToolExecutionDispatcherAvailable);
-            }
-
-            return _toolExecutor;
-        }
-
-        private bool IsToolExecutionDispatcherAvailable()
-        {
-            return _acceptToolExecutionRequests;
-        }
-
-        private void EnqueueToolExecutionRequest(MainThreadToolExecutionRequest request)
-        {
-            if (request == null)
-            {
-                return;
-            }
-
-            if (!_acceptToolExecutionRequests)
-            {
-                request.Complete(
-                    SimulationToolResult.CreateError(
-                        request.ToolName,
-                        "Tool execution dispatcher is unavailable."));
-                return;
-            }
-
-            _pendingToolExecutionRequests.Enqueue(request);
-        }
-
-        private void DrainPendingToolExecutionRequests()
-        {
-            MainThreadToolExecutionRequest request;
-            while (_pendingToolExecutionRequests.TryDequeue(out request))
-            {
-                if (request == null)
-                {
-                    continue;
-                }
-
-                if (!_acceptToolExecutionRequests)
-                {
-                    request.Complete(
-                        SimulationToolResult.CreateError(
-                            request.ToolName,
-                            "Tool execution dispatcher is unavailable."));
-                    continue;
-                }
-
-                request.Complete(SimulationToolRegistry.ExecuteInline(request.Registry, request.Call));
-            }
-        }
-
         private void DrainPendingTraceEntries()
         {
             PendingTraceEntry pendingTraceEntry;
@@ -1244,25 +1398,6 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
 
                 CleanupDetachedTurnOperation(operation);
                 _detachedTurnOperations.RemoveAt(i);
-            }
-        }
-
-        private void FailPendingToolExecutionRequests(string message)
-        {
-            MainThreadToolExecutionRequest request;
-            while (_pendingToolExecutionRequests.TryDequeue(out request))
-            {
-                if (request == null)
-                {
-                    continue;
-                }
-
-                request.Complete(
-                    SimulationToolResult.CreateError(
-                        request.ToolName,
-                        string.IsNullOrWhiteSpace(message)
-                            ? "Tool execution dispatcher is unavailable."
-                            : message));
             }
         }
 
@@ -1537,91 +1672,6 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             public int SuccessfulTurns;
             public int FailedTurns;
             public string LastError = string.Empty;
-        }
-
-        private sealed class MainThreadSimulationToolExecutor : ISimulationToolExecutor
-        {
-            private readonly int _unityThreadId;
-            private readonly Action<MainThreadToolExecutionRequest> _enqueueRequest;
-            private readonly Func<bool> _isDispatcherAvailable;
-
-            public MainThreadSimulationToolExecutor(
-                int unityThreadId,
-                Action<MainThreadToolExecutionRequest> enqueueRequest,
-                Func<bool> isDispatcherAvailable)
-            {
-                _unityThreadId = unityThreadId;
-                _enqueueRequest = enqueueRequest;
-                _isDispatcherAvailable = isDispatcherAvailable;
-            }
-
-            public SimulationToolResult Execute(SimulationToolRegistry registry, SimulationToolCall call)
-            {
-                if (Thread.CurrentThread.ManagedThreadId == _unityThreadId)
-                {
-                    return SimulationToolRegistry.ExecuteInline(registry, call);
-                }
-
-                if (_isDispatcherAvailable == null || !_isDispatcherAvailable())
-                {
-                    return SimulationToolResult.CreateError(
-                        call == null ? string.Empty : call.Name,
-                        "Tool execution dispatcher is unavailable.");
-                }
-
-                var request = new MainThreadToolExecutionRequest(registry, call);
-                _enqueueRequest(request);
-                return request.WaitForResult();
-            }
-        }
-
-        private sealed class MainThreadToolExecutionRequest
-        {
-            private readonly TaskCompletionSource<SimulationToolResult> _completion =
-                new TaskCompletionSource<SimulationToolResult>();
-
-            public MainThreadToolExecutionRequest(SimulationToolRegistry registry, SimulationToolCall call)
-            {
-                Registry = registry;
-                Call = CloneCall(call);
-                ToolName = Call == null ? string.Empty : Call.Name;
-            }
-
-            public SimulationToolRegistry Registry { get; private set; }
-
-            public SimulationToolCall Call { get; private set; }
-
-            public string ToolName { get; private set; }
-
-            public SimulationToolResult WaitForResult()
-            {
-                try
-                {
-                    return _completion.Task.GetAwaiter().GetResult();
-                }
-                catch (Exception ex)
-                {
-                    return SimulationToolResult.CreateError(
-                        ToolName,
-                        ex.GetType().Name + ": " + ex.Message);
-                }
-            }
-
-            public void Complete(SimulationToolResult result)
-            {
-                _completion.TrySetResult(
-                    result ?? SimulationToolResult.CreateError(ToolName, "Tool execution returned no result."));
-            }
-
-            private static SimulationToolCall CloneCall(SimulationToolCall call)
-            {
-                var value = call ?? new SimulationToolCall();
-                return new SimulationToolCall
-                {
-                    Name = value.Name ?? string.Empty,
-                    ArgumentsJson = string.IsNullOrWhiteSpace(value.ArgumentsJson) ? "{}" : value.ArgumentsJson
-                };
-            }
         }
     }
 }

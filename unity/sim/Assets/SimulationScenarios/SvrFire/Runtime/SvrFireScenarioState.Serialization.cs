@@ -63,62 +63,6 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             return builder.ToString();
         }
 
-        private static string BuildEnvironmentCueData(
-            string routeId,
-            bool? available,
-            string coworkerState,
-            string note)
-        {
-            var builder = new StringBuilder(160);
-            builder.Append('{');
-            var wroteAny = false;
-
-            if (!string.IsNullOrWhiteSpace(routeId))
-            {
-                AppendJsonPair(builder, "route_id", routeId, ref wroteAny);
-            }
-
-            if (available.HasValue)
-            {
-                if (wroteAny)
-                {
-                    builder.Append(',');
-                }
-
-                builder.Append("\"available\":");
-                builder.Append(available.Value ? "true" : "false");
-                wroteAny = true;
-            }
-
-            if (!string.IsNullOrWhiteSpace(coworkerState))
-            {
-                AppendJsonPair(builder, "coworker_state", coworkerState, ref wroteAny);
-            }
-
-            if (!string.IsNullOrWhiteSpace(note))
-            {
-                AppendJsonPair(builder, "note", note, ref wroteAny);
-            }
-
-            builder.Append('}');
-            return builder.ToString();
-        }
-
-        private static void AppendJsonPair(StringBuilder builder, string key, string value, ref bool wroteAny)
-        {
-            if (wroteAny)
-            {
-                builder.Append(',');
-            }
-
-            builder.Append('"');
-            builder.Append(SvrFireJson.Escape(key ?? string.Empty));
-            builder.Append("\":\"");
-            builder.Append(SvrFireJson.Escape(value ?? string.Empty));
-            builder.Append('"');
-            wroteAny = true;
-        }
-
         private static SimulationStateEntry CreateStringEntry(string category, string key, string value)
         {
             return new SimulationStateEntry

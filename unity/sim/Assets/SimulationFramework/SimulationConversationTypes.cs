@@ -16,6 +16,13 @@ namespace GemmaHackathon.SimulationFramework
         Error
     }
 
+    public enum SimulationConversationFollowUpMode
+    {
+        Always,
+        Auto,
+        Never
+    }
+
     [Serializable]
     public sealed class SimulationConversationTraceEntry
     {
@@ -36,6 +43,7 @@ namespace GemmaHackathon.SimulationFramework
 
     public sealed class SimulationConversationManagerOptions
     {
+        public const int DefaultResponseBufferBytes = 1024 * 1024;
         public const string DefaultCompletionOptionsJson =
             "{\"temperature\":0.0,\"auto_handoff\":false,\"enable_thinking_if_supported\":false}";
         public const string FastTurnCompletionOptionsJson =
@@ -49,17 +57,20 @@ namespace GemmaHackathon.SimulationFramework
 
         public string CompletionOptionsJson = DefaultCompletionOptionsJson;
         public string FollowUpCompletionOptionsJson = DefaultCompletionOptionsJson;
-        public string EventMessagePrefix = "Simulation event:\n";
-        public int ResponseBufferBytes = CactusNative.LargeJsonBufferSize;
+        public int ResponseBufferBytes = DefaultResponseBufferBytes;
         public int MaxToolRoundTrips = 2;
+        public int MaxPromptHistoryMessages;
         public bool ResetModelBeforeEachCompletion = true;
+        public SimulationPromptStateOptions PromptStateOptions = new SimulationPromptStateOptions();
+        public SimulationConversationFollowUpMode FollowUpCompletionMode = SimulationConversationFollowUpMode.Always;
+        public Func<IReadOnlyList<SimulationToolResult>, string> ToolResultResponseBuilder;
         public Action<SimulationConversationTraceEntry> TraceSink;
         public ISimulationToolExecutor ToolExecutor;
         public ISimulationRunLogger RunLogger;
     }
 
     [Serializable]
-    public sealed class CactusCompletionResponse
+    public sealed class SimulationCompletionResponse
     {
         public bool ParseSucceeded;
         public bool Success;
@@ -79,9 +90,9 @@ namespace GemmaHackathon.SimulationFramework
         public int? DecodeTokens;
         public int? TotalTokens;
 
-        public static CactusCompletionResponse Parse(string rawJson)
+        public static SimulationCompletionResponse Parse(string rawJson)
         {
-            var result = new CactusCompletionResponse();
+            var result = new SimulationCompletionResponse();
             result.RawJson = rawJson ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(rawJson))
@@ -228,7 +239,7 @@ namespace GemmaHackathon.SimulationFramework
         public string FinalAssistantResponse = string.Empty;
         public ConversationMessage InputMessage = new ConversationMessage();
         public List<SimulationStateSnapshot> StateSnapshots = new List<SimulationStateSnapshot>();
-        public List<CactusCompletionResponse> CompletionResponses = new List<CactusCompletionResponse>();
+        public List<SimulationCompletionResponse> CompletionResponses = new List<SimulationCompletionResponse>();
         public List<SimulationToolResult> ToolResults = new List<SimulationToolResult>();
         public List<string> AssistantResponses = new List<string>();
         public List<SimulationConversationTraceEntry> TraceEntries = new List<SimulationConversationTraceEntry>();

@@ -64,14 +64,14 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 "Recognize and acknowledge the alarm",
                 safeSnapshot.AlarmAcknowledgedAtSeconds.HasValue,
                 safeSnapshot.AlarmAcknowledgedAtSeconds.HasValue
-                    ? "Acknowledged at " + safeSnapshot.AlarmAcknowledgedAtSeconds.Value.ToString("0.0", CultureInfo.InvariantCulture) + "s"
+                    ? BuildTimingNote(safeSnapshot, safeSnapshot.AlarmAcknowledgedAtSeconds.Value, "Acknowledged")
                     : "Alarm not yet acknowledged."));
             checklist.Add(CreateChecklistItem(
                 "start_evacuation",
                 "Begin evacuation promptly",
                 safeSnapshot.EvacuationStartedAtSeconds.HasValue,
                 safeSnapshot.EvacuationStartedAtSeconds.HasValue
-                    ? "Started moving at " + safeSnapshot.EvacuationStartedAtSeconds.Value.ToString("0.0", CultureInfo.InvariantCulture) + "s"
+                    ? BuildTimingNote(safeSnapshot, safeSnapshot.EvacuationStartedAtSeconds.Value, "Started moving")
                     : "Evacuation has not started."));
             checklist.Add(CreateChecklistItem(
                 "choose_safe_route",
@@ -115,7 +115,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 return 0;
             }
 
-            var seconds = snapshot.AlarmAcknowledgedAtSeconds.Value;
+            var seconds = ResolveAlarmRelativeSeconds(snapshot, snapshot.AlarmAcknowledgedAtSeconds.Value);
             if (seconds <= 5f)
             {
                 return 25;
@@ -141,7 +141,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 return 0;
             }
 
-            var seconds = snapshot.EvacuationStartedAtSeconds.Value;
+            var seconds = ResolveAlarmRelativeSeconds(snapshot, snapshot.EvacuationStartedAtSeconds.Value);
             if (seconds <= 10f)
             {
                 return 25;
@@ -207,6 +207,40 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                    snapshot.RouteAvailability.TryGetValue(snapshot.SelectedRouteId, out available) &&
                    available &&
                    string.Equals(snapshot.ParticipantLocation, SvrFireScenarioValues.LocationSafe, StringComparison.Ordinal);
+        }
+
+        private static float ResolveAlarmRelativeSeconds(SvrFireScenarioSnapshot snapshot, float absoluteSeconds)
+        {
+            if (snapshot != null &&
+                snapshot.AlarmTriggeredAtSeconds.HasValue &&
+                absoluteSeconds >= snapshot.AlarmTriggeredAtSeconds.Value)
+            {
+                return absoluteSeconds - snapshot.AlarmTriggeredAtSeconds.Value;
+            }
+
+            return absoluteSeconds;
+        }
+
+        private static string BuildTimingNote(
+            SvrFireScenarioSnapshot snapshot,
+            float absoluteSeconds,
+            string actionLabel)
+        {
+            var relativeSeconds = ResolveAlarmRelativeSeconds(snapshot, absoluteSeconds);
+            if (snapshot != null &&
+                snapshot.AlarmTriggeredAtSeconds.HasValue &&
+                absoluteSeconds >= snapshot.AlarmTriggeredAtSeconds.Value)
+            {
+                return actionLabel +
+                    " " +
+                    relativeSeconds.ToString("0.0", CultureInfo.InvariantCulture) +
+                    "s after alarm.";
+            }
+
+            return actionLabel +
+                " at " +
+                absoluteSeconds.ToString("0.0", CultureInfo.InvariantCulture) +
+                "s.";
         }
 
         private static void AddMetric(SvrFireReadinessScore score, string key, int value)

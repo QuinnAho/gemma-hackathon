@@ -101,10 +101,16 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
             return _runtimeController.RunUserTurn(text);
         }
 
-        public SimulationConversationTurnResult RunEventTurn(string eventDescription)
+        public SimulationConversationTurnResult RunAlarmEscalation()
         {
             EnsureRuntimeController();
-            return _runtimeController.RunEventTurn(eventDescription);
+            return _runtimeController.RunAlarmEscalation();
+        }
+
+        public SimulationConversationTurnResult StartSimulation()
+        {
+            EnsureRuntimeController();
+            return _runtimeController.StartSimulation();
         }
 
         public SimulationConversationTurnResult RunParticipantAction(string actionCode, string source = "ui")

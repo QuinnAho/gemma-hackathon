@@ -15,8 +15,10 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
     internal sealed class SvrFireScenarioSnapshot
     {
         public AuditSessionRecord SessionRecord = new AuditSessionRecord();
+        public string SessionState = SvrFireScenarioValues.SessionStateReady;
         public string Phase = string.Empty;
         public bool AlarmActive;
+        public float? AlarmTriggeredAtSeconds;
         public string ParticipantLocation = string.Empty;
         public string HazardState = string.Empty;
         public Dictionary<string, bool> RouteAvailability = new Dictionary<string, bool>(System.StringComparer.Ordinal);
@@ -37,6 +39,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
 
     internal sealed class SvrFireScenarioStatusSnapshot
     {
+        public string SessionState = SvrFireScenarioValues.SessionStateReady;
         public string Phase = string.Empty;
         public string ParticipantLocation = string.Empty;
         public string HazardState = string.Empty;

@@ -253,7 +253,7 @@ namespace GemmaHackathon.SimulationFramework
         private void SendControlCommand(string commandName, bool throwOnFailure)
         {
             var responseLine = SendRequest(BuildControlRequestJson(commandName), commandName);
-            var response = CactusCompletionResponse.Parse(responseLine);
+            var response = SimulationCompletionResponse.Parse(responseLine);
             if (!throwOnFailure)
             {
                 return;

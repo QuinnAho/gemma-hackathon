@@ -35,6 +35,10 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
 
             var outcome = "recorded";
             var target = safeAction.Target ?? string.Empty;
+            var shouldCompleteSession = false;
+            var completionReason = string.Empty;
+            var completionOutcome = string.Empty;
+            var completionDataJson = string.Empty;
 
             switch (safeAction.ActionCode)
             {
@@ -77,20 +81,29 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                     {
                         _participantLocation = SvrFireScenarioValues.LocationSafe;
                         _phase = SvrFireScenarioValues.PhaseComplete;
-                        _scenarioCompletionRequested = true;
                         outcome = "reached_safety";
+                        shouldCompleteSession = true;
+                        completionReason = "Participant reached the designated safe exit.";
+                        completionOutcome = "completed_safe";
                     }
                     else
                     {
                         _participantLocation = SvrFireScenarioValues.LocationHazard;
                         _phase = SvrFireScenarioValues.PhaseComplete;
-                        _scenarioCompletionRequested = true;
                         outcome = "entered_hazard";
                         EmitCriticalErrorLocked(
                             SvrFireScenarioValues.CriticalWrongExit,
                             "Participant selected a hazardous exit route.",
                             elapsedSeconds);
+                        shouldCompleteSession = true;
+                        completionReason = "Participant entered a hazardous route.";
+                        completionOutcome = "completed_hazard";
                     }
+
+                    completionDataJson = AuditEventJson.CreateObject(
+                        new KeyValuePair<string, string>("reason", completionReason),
+                        new KeyValuePair<string, string>("selected_route", _selectedRouteId),
+                        new KeyValuePair<string, string>("final_location", _participantLocation));
 
                     break;
 
@@ -111,9 +124,14 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
 
                 case SvrFireScenarioValues.ActionAbandonScenario:
                     _phase = SvrFireScenarioValues.PhaseComplete;
-                    _scenarioCompletionRequested = true;
                     outcome = "abandoned";
                     target = "scenario";
+                    shouldCompleteSession = true;
+                    completionReason = "Participant abandoned the scenario.";
+                    completionOutcome = "completed_abandoned";
+                    completionDataJson = AuditEventJson.CreateObject(
+                        new KeyValuePair<string, string>("reason", completionReason),
+                        new KeyValuePair<string, string>("final_location", _participantLocation));
                     break;
 
                 default:
@@ -129,20 +147,49 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 outcome,
                 safeAction.ToStructuredJson(),
                 elapsedSeconds);
+
+            if (shouldCompleteSession)
+            {
+                CompleteSessionLocked(
+                    completionReason,
+                    "scenario",
+                    completionOutcome,
+                    elapsedSeconds,
+                    completionDataJson);
+            }
         }
 
         private void EnsureTimeBasedCriticalFailuresLocked(float elapsedSeconds)
         {
+            float secondsSinceAlarm;
             if (_alarmActive &&
                 !_alarmAcknowledgedAtSeconds.HasValue &&
-                elapsedSeconds >= 60f &&
+                TryGetSecondsSinceAlarmLocked(elapsedSeconds, out secondsSinceAlarm) &&
+                secondsSinceAlarm >= 60f &&
                 !_criticalErrorCodes.Contains(SvrFireScenarioValues.CriticalIgnoredAlarm))
             {
                 EmitCriticalErrorLocked(
                     SvrFireScenarioValues.CriticalIgnoredAlarm,
-                    "Participant failed to acknowledge the alarm within 60 seconds.",
+                    "Participant failed to acknowledge the alarm within 60 seconds of alarm activation.",
                     elapsedSeconds);
             }
+        }
+
+        private bool TryGetSecondsSinceAlarmLocked(float elapsedSeconds, out float secondsSinceAlarm)
+        {
+            if (!_alarmTriggeredAtSeconds.HasValue)
+            {
+                secondsSinceAlarm = 0f;
+                return false;
+            }
+
+            secondsSinceAlarm = elapsedSeconds - _alarmTriggeredAtSeconds.Value;
+            if (secondsSinceAlarm < 0f)
+            {
+                secondsSinceAlarm = 0f;
+            }
+
+            return true;
         }
 
         private void EmitCriticalErrorLocked(string code, string details, float elapsedSeconds)

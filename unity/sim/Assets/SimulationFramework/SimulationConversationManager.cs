@@ -73,20 +73,6 @@ namespace GemmaHackathon.SimulationFramework
             });
         }
 
-        public SimulationConversationTurnResult ProcessSimulationEvent(string eventDescription)
-        {
-            if (string.IsNullOrWhiteSpace(eventDescription))
-            {
-                throw new ArgumentException("Event description is required.", "eventDescription");
-            }
-
-            return ProcessTurn(new ConversationMessage
-            {
-                Role = "user",
-                Content = (_options.EventMessagePrefix ?? string.Empty) + eventDescription
-            });
-        }
-
         private SimulationConversationTurnResult ProcessTurn(ConversationMessage inputMessage)
         {
             var result = new SimulationConversationTurnResult();
@@ -132,7 +118,7 @@ namespace GemmaHackathon.SimulationFramework
 
                     RecordTrace(result, SimulationConversationTraceKind.CompletionJson, rawJson);
 
-                    var completion = CactusCompletionResponse.Parse(rawJson);
+                    var completion = SimulationCompletionResponse.Parse(rawJson);
                     result.CompletionResponses.Add(completion);
                     result.CompletionCount = result.CompletionResponses.Count;
                     if (completion != null && completion.TotalTimeMs.HasValue)
@@ -189,6 +175,7 @@ namespace GemmaHackathon.SimulationFramework
                         return result;
                     }
 
+                    var currentRoundToolResults = new List<SimulationToolResult>(completion.FunctionCalls.Count);
                     for (var i = 0; i < completion.FunctionCalls.Count; i++)
                     {
                         var call = completion.FunctionCalls[i];
@@ -213,10 +200,35 @@ namespace GemmaHackathon.SimulationFramework
                         toolResult = toolResult ?? SimulationToolResult.CreateError(call.Name, "Tool execution returned no result.");
                         toolStopwatch.Stop();
                         result.ToolResults.Add(toolResult);
+                        currentRoundToolResults.Add(toolResult);
                         workingHistory.Add(toolResult.ToConversationMessage());
                         RecordTrace(result, SimulationConversationTraceKind.ToolResult, toolResult.ToToolMessageContentJson());
                         LogToolResult(result.TurnId, toolCorrelationId, toolResult, toolStopwatch.Elapsed.TotalMilliseconds);
                         LogPostToolState(result.TurnId, toolCorrelationId);
+                    }
+
+                    string skippedFollowUpResponse;
+                    if (ShouldSkipFollowUpCompletion(completion, currentRoundToolResults, out skippedFollowUpResponse))
+                    {
+                        if (string.IsNullOrWhiteSpace(completion.Response) &&
+                            !string.IsNullOrWhiteSpace(skippedFollowUpResponse))
+                        {
+                            var assistantMessage = new ConversationMessage
+                            {
+                                Role = "assistant",
+                                Content = skippedFollowUpResponse
+                            };
+                            workingHistory.Add(assistantMessage);
+                            result.AssistantResponses.Add(skippedFollowUpResponse);
+                            result.FinalAssistantResponse = skippedFollowUpResponse;
+                            RecordTrace(result, SimulationConversationTraceKind.AssistantResponse, skippedFollowUpResponse);
+                        }
+
+                        CommitHistory(workingHistory);
+                        result.Success = true;
+                        result.AppliedToHistory = true;
+                        LogTurnRecord(result, "completed");
+                        return result;
                     }
 
                     toolRoundTrips++;
@@ -240,16 +252,17 @@ namespace GemmaHackathon.SimulationFramework
             SimulationStateSnapshot snapshot,
             List<ConversationMessage> workingHistory)
         {
-            var result = new List<ConversationMessage>(workingHistory.Count + 1);
+            var promptHistory = BuildPromptHistoryWindow(workingHistory);
+            var result = new List<ConversationMessage>(promptHistory.Count + 1);
             result.Add(new ConversationMessage
             {
                 Role = "system",
                 Content = BuildSystemMessage(snapshot)
             });
 
-            for (var i = 0; i < workingHistory.Count; i++)
+            for (var i = 0; i < promptHistory.Count; i++)
             {
-                result.Add(CloneMessage(workingHistory[i]));
+                result.Add(promptHistory[i]);
             }
 
             return result;
@@ -267,8 +280,94 @@ namespace GemmaHackathon.SimulationFramework
 
             builder.Append("Current simulation state JSON:");
             builder.AppendLine();
-            builder.Append(snapshot == null ? "{}" : snapshot.ToStructuredJson());
+            builder.Append(snapshot == null ? "{}" : snapshot.ToPromptJson(_options.PromptStateOptions));
             return builder.ToString();
+        }
+
+        private List<ConversationMessage> BuildPromptHistoryWindow(List<ConversationMessage> workingHistory)
+        {
+            var result = new List<ConversationMessage>();
+            if (workingHistory == null || workingHistory.Count == 0)
+            {
+                return result;
+            }
+
+            var startIndex = 0;
+            if (_options.MaxPromptHistoryMessages > 0 &&
+                workingHistory.Count > _options.MaxPromptHistoryMessages)
+            {
+                startIndex = workingHistory.Count - _options.MaxPromptHistoryMessages;
+            }
+
+            for (var i = startIndex; i < workingHistory.Count; i++)
+            {
+                result.Add(CloneMessage(workingHistory[i]));
+            }
+
+            return result;
+        }
+
+        private bool ShouldSkipFollowUpCompletion(
+            SimulationCompletionResponse completion,
+            List<SimulationToolResult> toolResults,
+            out string assistantResponse)
+        {
+            assistantResponse = string.Empty;
+
+            switch (_options.FollowUpCompletionMode)
+            {
+                case SimulationConversationFollowUpMode.Never:
+                    assistantResponse = ResolveSkippedFollowUpAssistantResponse(completion, toolResults);
+                    return true;
+                case SimulationConversationFollowUpMode.Auto:
+                    if (toolResults == null || toolResults.Count == 0)
+                    {
+                        return false;
+                    }
+
+                    for (var i = 0; i < toolResults.Count; i++)
+                    {
+                        if (toolResults[i] != null && toolResults[i].IsError)
+                        {
+                            return false;
+                        }
+                    }
+
+                    assistantResponse = ResolveSkippedFollowUpAssistantResponse(completion, toolResults);
+                    return !string.IsNullOrWhiteSpace(assistantResponse) ||
+                           (completion != null && !string.IsNullOrWhiteSpace(completion.Response));
+                case SimulationConversationFollowUpMode.Always:
+                default:
+                    return false;
+            }
+        }
+
+        private string ResolveSkippedFollowUpAssistantResponse(
+            SimulationCompletionResponse completion,
+            List<SimulationToolResult> toolResults)
+        {
+            if (completion != null && !string.IsNullOrWhiteSpace(completion.Response))
+            {
+                return completion.Response;
+            }
+
+            var responseBuilder = _options.ToolResultResponseBuilder;
+            if (responseBuilder == null || toolResults == null || toolResults.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                var builtResponse = responseBuilder(toolResults);
+                return string.IsNullOrWhiteSpace(builtResponse)
+                    ? string.Empty
+                    : builtResponse.Trim();
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private void CommitHistory(List<ConversationMessage> workingHistory)
@@ -375,7 +474,7 @@ namespace GemmaHackathon.SimulationFramework
         private void LogCompletionRecord(
             string turnId,
             string correlationId,
-            CactusCompletionResponse completion)
+            SimulationCompletionResponse completion)
         {
             if (completion == null)
             {

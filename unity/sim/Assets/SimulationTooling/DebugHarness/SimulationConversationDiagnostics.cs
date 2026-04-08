@@ -1,5 +1,6 @@
 using System;
 using GemmaHackathon.SimulationFramework;
+using GemmaHackathon.SimulationScenarios.SvrFire;
 
 namespace GemmaHackathon.SimulationTooling.DebugHarness
 {
@@ -53,6 +54,7 @@ namespace GemmaHackathon.SimulationTooling.DebugHarness
     {
         public SimulationRuntimeLifecycleState RuntimeState = SimulationRuntimeLifecycleState.Uninitialized;
         public SimulationTurnLifecycleState TurnState = SimulationTurnLifecycleState.Idle;
+        public string SessionState = SvrFireScenarioValues.SessionStateReady;
         public string RequestedRuntimeMode = string.Empty;
         public string SelectedRuntimeMode = string.Empty;
         public string ActiveBackendName = string.Empty;

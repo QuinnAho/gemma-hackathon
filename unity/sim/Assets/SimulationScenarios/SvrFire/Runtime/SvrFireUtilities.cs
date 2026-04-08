@@ -1,41 +1,9 @@
 using System;
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace GemmaHackathon.SimulationScenarios.SvrFire
 {
-    internal static class SvrToolArgumentReader
-    {
-        public static string ReadString(string json, string key, string defaultValue)
-        {
-            var match = Regex.Match(
-                json ?? string.Empty,
-                "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
-
-            if (!match.Success)
-            {
-                return defaultValue;
-            }
-
-            return SvrFireJson.Unescape(match.Groups[1].Value);
-        }
-
-        public static bool? ReadBoolean(string json, string key)
-        {
-            var match = Regex.Match(
-                json ?? string.Empty,
-                "\"" + Regex.Escape(key) + "\"\\s*:\\s*(true|false)");
-
-            if (!match.Success)
-            {
-                return null;
-            }
-
-            return string.Equals(match.Groups[1].Value, "true", StringComparison.Ordinal);
-        }
-    }
-
     internal static class SvrFireJson
     {
         public static string Escape(string value)

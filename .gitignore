@@ -30,6 +30,10 @@ AGENTS.md
 CLAUDE.md
 TO-DO.md
 
+# Backend .NET generated outputs
+backend/**/bin/
+backend/**/obj/
+
 # Editor and OS files
 .vscode/
 .idea/

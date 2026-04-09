@@ -7,27 +7,19 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);CS0649</NoWarn>
     <LangVersion>latest</LangVersion>
+    <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
     <AssemblyName>SimulationAssessment.Cli</AssemblyName>
     <RootNamespace>GemmaHackathon.Backend.AssessmentCli</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationAssessmentContracts.cs" Link="SimulationFramework\SimulationAssessmentContracts.cs" />
-    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationAuditContracts.cs" Link="SimulationFramework\SimulationAuditContracts.cs" />
-    <Compile Include="..\..\unity\sim\Assets\SimulationFramework\SimulationContracts.cs" Link="SimulationFramework\SimulationContracts.cs" />
-    <Compile Include="..\SimulationAssessment.Core\PortableSimulationRunJson.cs" Link="SimulationFramework\PortableSimulationRunJson.cs" />
-    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireScenarioContracts.cs" Link="SimulationScenarios\SvrFire\SvrFireScenarioContracts.cs" />
-    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireScenarioValues.cs" Link="SimulationScenarios\SvrFire\SvrFireScenarioValues.cs" />
-    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireDeficitCatalog.cs" Link="SimulationScenarios\SvrFire\SvrFireDeficitCatalog.cs" />
-    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireReadinessScorer.cs" Link="SimulationScenarios\SvrFire\SvrFireReadinessScorer.cs" />
-    <Compile Include="..\SimulationAssessment.SvrFire\SvrFireAssessmentReplay.cs" Link="SimulationScenarios\SvrFire\SvrFireAssessmentReplay.cs" />
-    <Compile Include="CliOptions.cs" />
-    <Compile Include="BackendDesktopGemmaBridgeClient.cs" />
-    <Compile Include="AssessmentNarrativeComposers.cs" />
-    <Compile Include="InternalsVisibleTo.cs" />
-    <Compile Include="RepositoryPaths.cs" />
-    <Compile Include="SimulationRunLogReader.cs" />
-    <Compile Include="AssessmentExportWriter.cs" />
+    <ProjectReference
+      Include="..\SimulationAssessment.Backend\SimulationAssessment.Backend.csproj"
+      SkipGetTargetFrameworkProperties="true"
+      SetTargetFramework="TargetFramework=net9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="Program.cs" />
   </ItemGroup>
 </Project>

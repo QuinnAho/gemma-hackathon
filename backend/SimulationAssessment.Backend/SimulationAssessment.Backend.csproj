@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS0649</NoWarn>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>SimulationAssessment.Backend</AssemblyName>
+    <RootNamespace>GemmaHackathon.Backend.AssessmentCli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference
+      Include="..\SimulationAssessment.SvrFire\SimulationAssessment.SvrFire.csproj"
+      SkipGetTargetFrameworkProperties="true"
+      SetTargetFramework="TargetFramework=net9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="AssessmentReplayRecord.cs" />
+    <Compile Include="CliOptions.cs" />
+    <Compile Include="BackendDesktopGemmaBridgeClient.cs" />
+    <Compile Include="AssessmentNarrativeComposers.cs" />
+    <Compile Include="InternalsVisibleTo.cs" />
+    <Compile Include="RepositoryPaths.cs" />
+    <Compile Include="SimulationRunLogReader.cs" />
+    <Compile Include="AssessmentExportWriter.cs" />
+    <Compile Include="AssessmentExportApplication.cs" />
+  </ItemGroup>
+</Project>

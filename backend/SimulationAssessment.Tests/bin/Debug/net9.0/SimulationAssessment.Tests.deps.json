@@ -8,15 +8,35 @@
     ".NETCoreApp,Version=v9.0": {
       "SimulationAssessment.Tests/1.0.0": {
         "dependencies": {
-          "SimulationAssessment.Cli": "1.0.0"
+          "SimulationAssessment.Backend": "1.0.0",
+          "SimulationAssessment.Core.Reference": "1.0.0.0"
         },
         "runtime": {
           "SimulationAssessment.Tests.dll": {}
         }
       },
-      "SimulationAssessment.Cli/1.0.0": {
+      "SimulationAssessment.Backend/1.0.0": {
+        "dependencies": {
+          "SimulationAssessment.SvrFire": "1.0.0"
+        },
         "runtime": {
-          "SimulationAssessment.Cli.dll": {
+          "SimulationAssessment.Backend.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "SimulationAssessment.Core.Reference/1.0.0.0": {
+        "runtime": {
+          "SimulationAssessment.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "SimulationAssessment.SvrFire.Reference/1.0.0.0": {
+        "runtime": {
+          "SimulationAssessment.SvrFire.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -30,8 +50,18 @@
       "serviceable": false,
       "sha512": ""
     },
-    "SimulationAssessment.Cli/1.0.0": {
+    "SimulationAssessment.Backend/1.0.0": {
       "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "SimulationAssessment.Core.Reference/1.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "SimulationAssessment.SvrFire.Reference/1.0.0.0": {
+      "type": "reference",
       "serviceable": false,
       "sha512": ""
     }

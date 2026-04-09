@@ -6,11 +6,19 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <LangVersion>latest</LangVersion>
+    <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
     <AssemblyName>SimulationAssessment.Tests</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SimulationAssessment.Cli\SimulationAssessment.Cli.csproj" />
+    <Reference Include="SimulationAssessment.Core">
+      <HintPath>..\SimulationAssessment.Core\bin\Debug\net9.0\SimulationAssessment.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <ProjectReference
+      Include="..\SimulationAssessment.Backend\SimulationAssessment.Backend.csproj"
+      SkipGetTargetFrameworkProperties="true"
+      SetTargetFramework="TargetFramework=net9.0" />
     <Compile Include="Program.cs" />
   </ItemGroup>
 </Project>

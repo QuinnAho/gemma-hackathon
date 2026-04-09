@@ -13,3 +13,11 @@ D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debu
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.pdb
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.genruntimeconfig.cache
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\ref\SimulationAssessment.Cli.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Core.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.SvrFire.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.SvrFire.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Core.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\SimulationAssessment.Cli.csproj.AssemblyReference.cache
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\obj\Debug\net9.0\Simulati.7621FDC6.Up2Date
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Backend.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Cli\bin\Debug\net9.0\SimulationAssessment.Backend.pdb

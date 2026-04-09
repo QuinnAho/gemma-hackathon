@@ -1,6 +1,6 @@
 namespace GemmaHackathon.SimulationScenarios.SvrFire
 {
-    internal static class SvrFireScenarioValues
+    public static class SvrFireScenarioValues
     {
         public const string ScenarioId = "svr-office-fire-evacuation";
         public const string SimulationId = "svr";

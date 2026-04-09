@@ -1,13 +1,8 @@
-D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Cli.deps.json
-D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Cli.runtimeconfig.json
-D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Cli.exe
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Tests.exe
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Tests.deps.json
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Tests.runtimeconfig.json
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Tests.dll
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Tests.pdb
-D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Cli.dll
-D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Cli.pdb
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\obj\Debug\net9.0\SimulationAssessment.Tests.csproj.AssemblyReference.cache
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\obj\Debug\net9.0\SimulationAssessment.Tests.GeneratedMSBuildEditorConfig.editorconfig
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\obj\Debug\net9.0\SimulationAssessment.Tests.AssemblyInfoInputs.cache
@@ -20,3 +15,9 @@ D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\obj\De
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\obj\Debug\net9.0\SimulationAssessment.Tests.pdb
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\obj\Debug\net9.0\SimulationAssessment.Tests.genruntimeconfig.cache
 D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\obj\Debug\net9.0\ref\SimulationAssessment.Tests.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Core.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.SvrFire.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Core.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.SvrFire.pdb
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Backend.dll
+D:\ahoqp1\Repositories\gemma-hackathon\backend\SimulationAssessment.Tests\bin\Debug\net9.0\SimulationAssessment.Backend.pdb

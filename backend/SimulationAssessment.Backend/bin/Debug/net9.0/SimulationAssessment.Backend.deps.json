@@ -1,0 +1,55 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "SimulationAssessment.Backend/1.0.0": {
+        "dependencies": {
+          "SimulationAssessment.SvrFire": "1.0.0"
+        },
+        "runtime": {
+          "SimulationAssessment.Backend.dll": {}
+        }
+      },
+      "SimulationAssessment.Core/1.0.0": {
+        "runtime": {
+          "SimulationAssessment.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "SimulationAssessment.SvrFire/1.0.0": {
+        "dependencies": {
+          "SimulationAssessment.Core": "1.0.0"
+        },
+        "runtime": {
+          "SimulationAssessment.SvrFire.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "SimulationAssessment.Backend/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "SimulationAssessment.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "SimulationAssessment.SvrFire/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

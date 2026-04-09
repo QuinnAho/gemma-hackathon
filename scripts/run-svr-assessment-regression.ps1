@@ -51,8 +51,28 @@ foreach ($fixtureDir in $fixtureDirs) {
     $expected = Get-Content -Path $expectedPath -Raw | ConvertFrom-Json
     $assessment = Get-Content -Path (Join-Path $exportPath "assessment.json") -Raw | ConvertFrom-Json
     $timeline = Get-Content -Path (Join-Path $exportPath "timeline.json") -Raw | ConvertFrom-Json
+    $exportManifestPath = Join-Path $exportPath "export-manifest.json"
+    $afterActionPath = Join-Path $exportPath "after-action-report.md"
 
     $failures = New-Object System.Collections.Generic.List[string]
+
+    if (-not (Test-Path $exportManifestPath)) {
+        $failures.Add("missing export-manifest.json")
+    }
+
+    if (-not (Test-Path $afterActionPath)) {
+        $failures.Add("missing after-action-report.md")
+    }
+
+    $exportManifest = $null
+    if (Test-Path $exportManifestPath) {
+        $exportManifest = Get-Content -Path $exportManifestPath -Raw | ConvertFrom-Json
+    }
+
+    $afterAction = ""
+    if (Test-Path $afterActionPath) {
+        $afterAction = Get-Content -Path $afterActionPath -Raw
+    }
 
     if ($assessment.Input.SessionState -ne $expected.session_state) {
         $failures.Add("session_state expected '$($expected.session_state)' but found '$($assessment.Input.SessionState)'")
@@ -120,6 +140,49 @@ foreach ($fixtureDir in $fixtureDirs) {
     $summary = [string]$assessment.Report.Summary
     if (-not $summary.Contains([string]$expected.summary_contains)) {
         $failures.Add("summary missing expected fragment '$($expected.summary_contains)'")
+    }
+
+    if ($null -ne $exportManifest) {
+        if ($exportManifest.SchemaVersion -ne "svr.assessment.export-manifest.v1") {
+            $failures.Add("export manifest schema version mismatch")
+        }
+
+        if ([bool]$exportManifest.HasNarrative) {
+            $failures.Add("export manifest unexpectedly reported a narrative payload")
+        }
+
+        $expectedArtifactIds = @(
+            "assessment",
+            "timeline",
+            "deterministic_report",
+            "session_package",
+            "review_summary",
+            "after_action_report",
+            "export_manifest"
+        )
+        $actualArtifactIds = @($exportManifest.Artifacts | ForEach-Object { $_.Id })
+        if ((Compare-Object -ReferenceObject ($expectedArtifactIds | Sort-Object) -DifferenceObject ($actualArtifactIds | Sort-Object))) {
+            $failures.Add("export manifest artifact inventory mismatch")
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($afterAction)) {
+        if (-not $afterAction.Contains("# SVR Fire After-Action Report")) {
+            $failures.Add("after-action report missing title")
+        }
+
+        $expectedScoreLine = "Score: $($assessment.Result.TotalPoints)/$($assessment.Result.MaxPoints) ($($assessment.Result.Band))"
+        if (-not $afterAction.Contains($expectedScoreLine)) {
+            $failures.Add("after-action report missing expected score line")
+        }
+
+        if (-not $afterAction.Contains([string]$expected.summary_contains)) {
+            $failures.Add("after-action report missing expected summary fragment '$($expected.summary_contains)'")
+        }
+
+        if (-not $afterAction.Contains("No optional narrative addendum was exported.")) {
+            $failures.Add("after-action report missing no-narrative note")
+        }
     }
 
     $result = [pscustomobject]@{

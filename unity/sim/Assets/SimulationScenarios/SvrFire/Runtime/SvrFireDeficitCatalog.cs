@@ -14,7 +14,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
         public string Recommendation = string.Empty;
     }
 
-    internal static class SvrFireDeficitCatalog
+    public static class SvrFireDeficitCatalog
     {
         public const string AlarmAcknowledgementMissingId = "alarm_ack_missing";
         public const string AlarmAcknowledgementDelayedId = "alarm_ack_delayed";

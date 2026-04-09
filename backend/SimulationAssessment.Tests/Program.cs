@@ -1,13 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 using GemmaHackathon.Backend.AssessmentCli;
 using GemmaHackathon.SimulationFramework;
-using GemmaHackathon.SimulationScenarios.SvrFire;
 
 namespace SimulationAssessment.Tests
 {
     internal static class Program
     {
+        private const string AlarmAcknowledgementMissingId = "alarm_ack_missing";
+        private const string CriticalIgnoredAlarmId = "ignored_alarm_60s";
+        private const string CriticalWrongExitId = "wrong_exit_into_fire";
+
         private static int Main()
         {
             var failures = new List<string>();
@@ -16,6 +21,8 @@ namespace SimulationAssessment.Tests
             RunTest("accepts_json_narrative_response", TestAcceptsJsonNarrativeResponse, failures);
             RunTest("falls_back_when_bridge_response_fails", TestFallsBackWhenBridgeResponseFails, failures);
             RunTest("template_recommendations_use_shared_deficit_catalog", TestTemplateRecommendationsUseSharedDeficitCatalog, failures);
+            RunTest("writes_versioned_export_manifest_and_after_action_report", TestWritesVersionedExportManifestAndAfterActionReport, failures);
+            RunTest("application_runs_fixture_export_through_backend_library", TestApplicationRunsFixtureExportThroughBackendLibrary, failures);
 
             if (failures.Count > 0)
             {
@@ -135,14 +142,14 @@ namespace SimulationAssessment.Tests
             request.Assessment.Result.Deficits.Clear();
             request.Assessment.Result.Deficits.Add(new DeficitRecord
             {
-                Id = SvrFireDeficitCatalog.AlarmAcknowledgementMissingId,
+                Id = AlarmAcknowledgementMissingId,
                 MetricId = "alarm_recognition",
                 Severity = "high",
                 Summary = "Alarm acknowledgement was not recorded."
             });
             request.Assessment.Result.Deficits.Add(new DeficitRecord
             {
-                Id = SvrFireScenarioValues.CriticalIgnoredAlarm,
+                Id = CriticalIgnoredAlarmId,
                 MetricId = "alarm_recognition",
                 Severity = "critical",
                 Summary = "Alarm acknowledgement exceeded the failure window."
@@ -168,6 +175,145 @@ namespace SimulationAssessment.Tests
                 "Unknown deficit IDs should fall back to their deterministic summary.");
         }
 
+        private static void TestWritesVersionedExportManifestAndAfterActionReport()
+        {
+            var request = BuildRequest();
+            var narrative = new AssessmentNarrative
+            {
+                Success = true,
+                Provider = "template",
+                PromptVersion = "template.narrative.v1",
+                Summary = "Narrative summary.",
+                ReportAddendum = "Narrative addendum.",
+                GroundingNote = "Narrative derived only from deterministic outputs and audit evidence."
+            };
+            narrative.Recommendations.Add("First recommendation.");
+            narrative.Recommendations.Add("Second recommendation.");
+
+            var replay = new AssessmentReplayRecord
+            {
+                SessionId = request.SessionRecord.SessionId,
+                SessionState = request.Assessment.Input.SessionState,
+                Phase = request.Assessment.Input.Phase,
+                SourceSessionDirectory = "synthetic-session",
+                SessionRecord = request.SessionRecord,
+                Assessment = request.Assessment,
+                Timeline = request.Timeline
+            };
+
+            var sessionLog = new SimulationRunSessionLog
+            {
+                SessionDirectory = "synthetic-session",
+                ManifestPath = "synthetic-session\\manifest.json",
+                EventsPath = "synthetic-session\\events.jsonl",
+                SessionRecord = request.SessionRecord,
+                Manifest = new RunLogManifestDocument()
+            };
+
+            var outputDirectory = Path.Combine(
+                AppContext.BaseDirectory,
+                "test-output",
+                "assessment-export-" + Guid.NewGuid().ToString("N"));
+
+            try
+            {
+                var exportDirectory = AssessmentExportWriter.Write(sessionLog, replay, narrative, outputDirectory);
+                var manifestPath = Path.Combine(exportDirectory, "export-manifest.json");
+                var reportPath = Path.Combine(exportDirectory, "after-action-report.md");
+                var narrativePath = Path.Combine(exportDirectory, "narrative.json");
+                var reportWithNarrativePath = Path.Combine(exportDirectory, "report-with-narrative.json");
+
+                AssertTrue(File.Exists(manifestPath), "Export manifest should be written.");
+                AssertTrue(File.Exists(reportPath), "After-action report should be written.");
+                AssertTrue(File.Exists(narrativePath), "Narrative artifact should be written when a narrative is present.");
+                AssertTrue(
+                    File.Exists(reportWithNarrativePath),
+                    "Augmented report package should be written when a narrative is present.");
+
+                var reportContent = File.ReadAllText(reportPath);
+                AssertContains(reportContent, "# SVR Fire After-Action Report", "After-action report should include the title.");
+                AssertContains(reportContent, "Narrative summary.", "After-action report should include the narrative summary.");
+                AssertContains(reportContent, "First recommendation.", "After-action report should include recommendations.");
+
+                using (var document = JsonDocument.Parse(File.ReadAllText(manifestPath)))
+                {
+                    var root = document.RootElement;
+                    AssertEqual(
+                        "svr.assessment.export-manifest.v1",
+                        ReadRequiredString(root, "SchemaVersion"),
+                        "Export manifest schema version should match.");
+                    AssertTrue(ReadRequiredBoolean(root, "HasNarrative"), "Export manifest should record the narrative payload.");
+                    AssertEqual(
+                        "template",
+                        ReadRequiredString(root, "NarrativeProvider"),
+                        "Export manifest should record the narrative provider.");
+
+                    JsonElement artifacts;
+                    AssertTrue(root.TryGetProperty("Artifacts", out artifacts), "Export manifest should include an artifact inventory.");
+                    AssertContainsArtifact(artifacts, "after_action_report");
+                    AssertContainsArtifact(artifacts, "export_manifest");
+                    AssertContainsArtifact(artifacts, "narrative");
+                    AssertContainsArtifact(artifacts, "report_with_narrative");
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(outputDirectory))
+                {
+                    Directory.Delete(outputDirectory, true);
+                }
+            }
+        }
+
+        private static void TestApplicationRunsFixtureExportThroughBackendLibrary()
+        {
+            var sessionDirectory = Path.Combine(
+                RepositoryPaths.FindRepositoryRoot(),
+                "backend",
+                "fixtures",
+                "svr",
+                "pass_safe_exit_b");
+            var outputDirectory = Path.Combine(
+                AppContext.BaseDirectory,
+                "test-output",
+                "application-export-" + Guid.NewGuid().ToString("N"));
+
+            try
+            {
+                var exitCode = AssessmentExportApplication.Run(new[]
+                {
+                    "--session",
+                    sessionDirectory,
+                    "--output",
+                    outputDirectory,
+                    "--narrative",
+                    "template"
+                });
+
+                AssertEqual(0, exitCode, "Backend application should return success for a committed fixture session.");
+                AssertTrue(File.Exists(Path.Combine(outputDirectory, "assessment.json")), "Application export should include assessment.json.");
+                AssertTrue(File.Exists(Path.Combine(outputDirectory, "timeline.json")), "Application export should include timeline.json.");
+                AssertTrue(File.Exists(Path.Combine(outputDirectory, "after-action-report.md")), "Application export should include the markdown report.");
+                AssertTrue(File.Exists(Path.Combine(outputDirectory, "export-manifest.json")), "Application export should include the export manifest.");
+
+                using (var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(outputDirectory, "export-manifest.json"))))
+                {
+                    var root = document.RootElement;
+                    AssertEqual("backend", ReadRequiredString(root, "ExportHost"), "Application export should record the backend host.");
+                    AssertEqual("unity", ReadRequiredString(root, "CanonicalEvidenceProducer"), "Application export should preserve Unity as the canonical evidence producer.");
+                    AssertTrue(ReadRequiredBoolean(root, "HasNarrative"), "Template narrative export should be recorded.");
+                    AssertEqual("template", ReadRequiredString(root, "NarrativeProvider"), "Template narrative mode should flow through the backend application.");
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(outputDirectory))
+                {
+                    Directory.Delete(outputDirectory, true);
+                }
+            }
+        }
+
         private static AssessmentNarrativeComposeRequest BuildRequest()
         {
             var result = new AssessmentResult
@@ -182,10 +328,10 @@ namespace SimulationAssessment.Tests
                 MaxPoints = 100,
                 Band = "fail"
             };
-            result.CriticalFailures.Add(SvrFireScenarioValues.CriticalWrongExit);
+            result.CriticalFailures.Add(CriticalWrongExitId);
             result.Deficits.Add(new DeficitRecord
             {
-                Id = SvrFireScenarioValues.CriticalWrongExit,
+                Id = CriticalWrongExitId,
                 MetricId = "safe_route",
                 Severity = "critical",
                 Summary = "The participant selected a hazardous exit route."
@@ -290,6 +436,42 @@ namespace SimulationAssessment.Tests
                     throw new InvalidOperationException(message + " Mismatch at index " + i + ".");
                 }
             }
+        }
+
+        private static void AssertContainsArtifact(JsonElement artifacts, string id)
+        {
+            foreach (var artifact in artifacts.EnumerateArray())
+            {
+                if (string.Equals(ReadRequiredString(artifact, "Id"), id, StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException("Expected artifact `" + id + "` was not found in export manifest.");
+        }
+
+        private static string ReadRequiredString(JsonElement element, string propertyName)
+        {
+            JsonElement value;
+            if (!element.TryGetProperty(propertyName, out value) || value.ValueKind != JsonValueKind.String)
+            {
+                throw new InvalidOperationException("Expected string property `" + propertyName + "`.");
+            }
+
+            return value.GetString() ?? string.Empty;
+        }
+
+        private static bool ReadRequiredBoolean(JsonElement element, string propertyName)
+        {
+            JsonElement value;
+            if (!element.TryGetProperty(propertyName, out value) ||
+                (value.ValueKind != JsonValueKind.True && value.ValueKind != JsonValueKind.False))
+            {
+                throw new InvalidOperationException("Expected boolean property `" + propertyName + "`.");
+            }
+
+            return value.GetBoolean();
         }
     }
 

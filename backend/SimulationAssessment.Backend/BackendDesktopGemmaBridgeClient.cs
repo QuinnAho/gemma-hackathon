@@ -450,26 +450,22 @@ namespace GemmaHackathon.Backend.AssessmentCli
             string optionsJson,
             string toolsJson)
         {
-            var builder = new StringBuilder(512);
-            builder.Append('{');
-            JsonText.AppendStringProperty(builder, "command", "complete");
-            builder.Append(',');
-            JsonText.AppendStringProperty(builder, "messages_json", messagesJson ?? "[]");
-            builder.Append(',');
-            JsonText.AppendStringProperty(builder, "options_json", optionsJson ?? "{}");
-            builder.Append(',');
-            JsonText.AppendStringProperty(builder, "tools_json", toolsJson ?? "[]");
-            builder.Append('}');
-            return builder.ToString();
+            return JsonSerializer.Serialize(
+                new
+                {
+                    command = "complete",
+                    messages_json = messagesJson ?? "[]",
+                    options_json = optionsJson ?? "{}",
+                    tools_json = toolsJson ?? "[]"
+                });
         }
 
         private static string BuildControlRequestJson(string commandName)
         {
-            var builder = new StringBuilder(64);
-            builder.Append('{');
-            JsonText.AppendStringProperty(builder, "command", commandName ?? string.Empty);
-            builder.Append('}');
-            return builder.ToString();
+            return JsonSerializer.Serialize(new
+            {
+                command = commandName ?? string.Empty
+            });
         }
 
         private static string ReadLineWithTimeout(StreamReader reader, int timeoutMs, string operationName)

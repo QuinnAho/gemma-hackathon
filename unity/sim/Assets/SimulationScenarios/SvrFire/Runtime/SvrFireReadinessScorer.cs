@@ -5,7 +5,7 @@ using GemmaHackathon.SimulationFramework;
 
 namespace GemmaHackathon.SimulationScenarios.SvrFire
 {
-    internal static class SvrFireReadinessScorer
+    public static class SvrFireReadinessScorer
     {
         private const string MetricAlarmRecognition = "alarm_recognition";
         private const string MetricEvacuationStart = "evacuation_start";
@@ -24,7 +24,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
 
         private static readonly ScoringPolicy DefaultPolicy = CreateDefaultPolicy();
 
-        public static AssessmentInput CreateAssessmentInput(SvrFireScenarioSnapshot snapshot)
+        internal static AssessmentInput CreateAssessmentInput(SvrFireScenarioSnapshot snapshot)
         {
             var safeSnapshot = snapshot ?? new SvrFireScenarioSnapshot();
             var sessionRecord = safeSnapshot.SessionRecord ?? new AuditSessionRecord();
@@ -106,12 +106,12 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             return input;
         }
 
-        public static AssessmentResult Calculate(SvrFireScenarioSnapshot snapshot)
+        internal static AssessmentResult Calculate(SvrFireScenarioSnapshot snapshot)
         {
             return Calculate(CreateAssessmentInput(snapshot), DefaultPolicy);
         }
 
-        public static AssessmentArtifacts CreateArtifacts(SvrFireScenarioSnapshot snapshot)
+        internal static AssessmentArtifacts CreateArtifacts(SvrFireScenarioSnapshot snapshot)
         {
             return CreateArtifacts(CreateAssessmentInput(snapshot), DefaultPolicy);
         }
@@ -190,7 +190,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             return result;
         }
 
-        public static List<SimulationChecklistItem> BuildChecklist(SvrFireScenarioSnapshot snapshot)
+        internal static List<SimulationChecklistItem> BuildChecklist(SvrFireScenarioSnapshot snapshot)
         {
             return BuildChecklist(CreateAssessmentInput(snapshot));
         }
@@ -200,7 +200,7 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             return BuildChecklistInternal(input);
         }
 
-        public static AssessmentReport BuildReport(SvrFireScenarioSnapshot snapshot)
+        internal static AssessmentReport BuildReport(SvrFireScenarioSnapshot snapshot)
         {
             var input = CreateAssessmentInput(snapshot);
             var result = Calculate(input, DefaultPolicy);

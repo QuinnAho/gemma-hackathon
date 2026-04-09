@@ -123,7 +123,7 @@ namespace GemmaHackathon.Backend.AssessmentCli
             for (var i = 0; i < safeResult.Deficits.Count; i++)
             {
                 var deficit = safeResult.Deficits[i] ?? new DeficitRecord();
-                var recommendation = MapRecommendation(deficit);
+                var recommendation = SvrFireDeficitCatalog.BuildRecommendation(deficit);
                 if (!string.IsNullOrWhiteSpace(recommendation) && !Contains(recommendations, recommendation))
                 {
                     recommendations.Add(recommendation);
@@ -136,37 +136,6 @@ namespace GemmaHackathon.Backend.AssessmentCli
             }
 
             return recommendations;
-        }
-
-        private static string MapRecommendation(DeficitRecord deficit)
-        {
-            var id = deficit == null ? string.Empty : (deficit.Id ?? string.Empty);
-            if (string.Equals(id, "alarm_ack_missing", StringComparison.Ordinal) ||
-                string.Equals(id, SvrFireScenarioValues.CriticalIgnoredAlarm, StringComparison.Ordinal))
-            {
-                return "Acknowledge the alarm immediately so the evacuation protocol starts from a recorded alarm response.";
-            }
-
-            if (string.Equals(id, "evacuation_delayed", StringComparison.Ordinal) ||
-                string.Equals(id, "evacuation_missing", StringComparison.Ordinal))
-            {
-                return "Begin moving toward a validated exit sooner once the alarm state is active.";
-            }
-
-            if (string.Equals(id, "safe_route_missing", StringComparison.Ordinal) ||
-                string.Equals(id, SvrFireScenarioValues.CriticalWrongExit, StringComparison.Ordinal))
-            {
-                return "Confirm which exits remain safe before committing to a route, especially after smoke or blockage cues appear.";
-            }
-
-            if (string.Equals(id, "safety_not_reached", StringComparison.Ordinal))
-            {
-                return "Continue the evacuation until the safe zone is actually reached and recorded by the scenario state.";
-            }
-
-            return string.IsNullOrWhiteSpace(deficit == null ? string.Empty : deficit.Summary)
-                ? string.Empty
-                : "Address the recorded deficit: " + deficit.Summary.Trim();
         }
 
         private static bool Contains(List<string> values, string value)

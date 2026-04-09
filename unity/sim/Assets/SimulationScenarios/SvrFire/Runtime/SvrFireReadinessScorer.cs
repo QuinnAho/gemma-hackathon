@@ -554,21 +554,15 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             {
                 AddDeficit(
                     result,
-                    "alarm_ack_missing",
-                    MetricAlarmRecognition,
-                    "high",
-                    "Alarm acknowledgement was not recorded.",
-                    "The participant never acknowledged the alarm during the assessment.");
+                    SvrFireDeficitCatalog.CreateRecord(SvrFireDeficitCatalog.AlarmAcknowledgementMissingId));
             }
             else if (ScoreTimingMetric(input, policy, MetricAlarmRecognition) < 25)
             {
                 AddDeficit(
                     result,
-                    "alarm_ack_delayed",
-                    MetricAlarmRecognition,
-                    "medium",
-                    "Alarm acknowledgement was delayed.",
-                    BuildTimingNote(input, alarmAcknowledgedAt.Value, "Acknowledged"));
+                    SvrFireDeficitCatalog.CreateRecord(
+                        SvrFireDeficitCatalog.AlarmAcknowledgementDelayedId,
+                        BuildTimingNote(input, alarmAcknowledgedAt.Value, "Acknowledged")));
             }
 
             var evacuationStartedAt = input.GetNumericFact(FactEvacuationStartedAt);
@@ -576,32 +570,22 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             {
                 AddDeficit(
                     result,
-                    "evacuation_missing",
-                    MetricEvacuationStart,
-                    "high",
-                    "Evacuation never started.",
-                    "The participant did not begin moving toward an exit.");
+                    SvrFireDeficitCatalog.CreateRecord(SvrFireDeficitCatalog.EvacuationMissingId));
             }
             else if (ScoreTimingMetric(input, policy, MetricEvacuationStart) < 25)
             {
                 AddDeficit(
                     result,
-                    "evacuation_delayed",
-                    MetricEvacuationStart,
-                    "medium",
-                    "Evacuation start was delayed.",
-                    BuildTimingNote(input, evacuationStartedAt.Value, "Started moving"));
+                    SvrFireDeficitCatalog.CreateRecord(
+                        SvrFireDeficitCatalog.EvacuationDelayedId,
+                        BuildTimingNote(input, evacuationStartedAt.Value, "Started moving")));
             }
 
             if (!IsSafeRouteChosen(input))
             {
                 AddDeficit(
                     result,
-                    "safe_route_missing",
-                    MetricRouteCorrectness,
-                    "high",
-                    "A safe exit route was not confirmed.",
-                    "The participant did not end the drill on a validated safe route.");
+                    SvrFireDeficitCatalog.CreateRecord(SvrFireDeficitCatalog.SafeRouteMissingId));
             }
 
             if (!string.Equals(
@@ -611,13 +595,11 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             {
                 AddDeficit(
                     result,
-                    "safety_not_reached",
-                    MetricProtocolCompletion,
-                    "high",
-                    "The participant did not reach the safe zone.",
-                    "The final recorded participant location was `" +
-                    (input.GetTextFact(FactParticipantLocation) ?? string.Empty) +
-                    "`.");
+                    SvrFireDeficitCatalog.CreateRecord(
+                        SvrFireDeficitCatalog.SafetyNotReachedId,
+                        "The final recorded participant location was `" +
+                        (input.GetTextFact(FactParticipantLocation) ?? string.Empty) +
+                        "`."));
             }
         }
 
@@ -625,25 +607,13 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
         {
             if (string.Equals(code, SvrFireScenarioValues.CriticalIgnoredAlarm, StringComparison.Ordinal))
             {
-                AddDeficit(
-                    result,
-                    code,
-                    MetricAlarmRecognition,
-                    "critical",
-                    "Alarm acknowledgement exceeded the failure window.",
-                    "The participant failed to acknowledge the alarm within 60 seconds.");
+                AddDeficit(result, SvrFireDeficitCatalog.CreateRecord(code));
                 return;
             }
 
             if (string.Equals(code, SvrFireScenarioValues.CriticalWrongExit, StringComparison.Ordinal))
             {
-                AddDeficit(
-                    result,
-                    code,
-                    MetricRouteCorrectness,
-                    "critical",
-                    "The participant selected a hazardous exit route.",
-                    "The evacuation path ended in a hazardous zone.");
+                AddDeficit(result, SvrFireDeficitCatalog.CreateRecord(code));
                 return;
             }
 
@@ -656,6 +626,32 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
                 code ?? string.Empty);
         }
 
+        private static void AddDeficit(AssessmentResult result, DeficitRecord deficit)
+        {
+            if (result == null || deficit == null || string.IsNullOrWhiteSpace(deficit.Id))
+            {
+                return;
+            }
+
+            for (var i = 0; i < result.Deficits.Count; i++)
+            {
+                if (result.Deficits[i] != null &&
+                    string.Equals(result.Deficits[i].Id, deficit.Id, StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+
+            result.Deficits.Add(new DeficitRecord
+            {
+                Id = deficit.Id ?? string.Empty,
+                MetricId = deficit.MetricId ?? string.Empty,
+                Severity = deficit.Severity ?? string.Empty,
+                Summary = deficit.Summary ?? string.Empty,
+                Details = deficit.Details ?? string.Empty
+            });
+        }
+
         private static void AddDeficit(
             AssessmentResult result,
             string id,
@@ -664,28 +660,16 @@ namespace GemmaHackathon.SimulationScenarios.SvrFire
             string summary,
             string details)
         {
-            if (result == null || string.IsNullOrWhiteSpace(id))
-            {
-                return;
-            }
-
-            for (var i = 0; i < result.Deficits.Count; i++)
-            {
-                if (result.Deficits[i] != null &&
-                    string.Equals(result.Deficits[i].Id, id, StringComparison.Ordinal))
+            AddDeficit(
+                result,
+                new DeficitRecord
                 {
-                    return;
-                }
-            }
-
-            result.Deficits.Add(new DeficitRecord
-            {
-                Id = id ?? string.Empty,
-                MetricId = metricId ?? string.Empty,
-                Severity = severity ?? string.Empty,
-                Summary = summary ?? string.Empty,
-                Details = details ?? string.Empty
-            });
+                    Id = id ?? string.Empty,
+                    MetricId = metricId ?? string.Empty,
+                    Severity = severity ?? string.Empty,
+                    Summary = summary ?? string.Empty,
+                    Details = details ?? string.Empty
+                });
         }
 
         private static AssessmentReportSection BuildOverviewSection(AssessmentInput input, AssessmentResult result)

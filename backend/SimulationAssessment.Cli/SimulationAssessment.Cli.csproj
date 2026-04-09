@@ -18,6 +18,7 @@
     <Compile Include="..\SimulationAssessment.Core\PortableSimulationRunJson.cs" Link="SimulationFramework\PortableSimulationRunJson.cs" />
     <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireScenarioContracts.cs" Link="SimulationScenarios\SvrFire\SvrFireScenarioContracts.cs" />
     <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireScenarioValues.cs" Link="SimulationScenarios\SvrFire\SvrFireScenarioValues.cs" />
+    <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireDeficitCatalog.cs" Link="SimulationScenarios\SvrFire\SvrFireDeficitCatalog.cs" />
     <Compile Include="..\..\unity\sim\Assets\SimulationScenarios\SvrFire\Runtime\SvrFireReadinessScorer.cs" Link="SimulationScenarios\SvrFire\SvrFireReadinessScorer.cs" />
     <Compile Include="..\SimulationAssessment.SvrFire\SvrFireAssessmentReplay.cs" Link="SimulationScenarios\SvrFire\SvrFireAssessmentReplay.cs" />
     <Compile Include="CliOptions.cs" />

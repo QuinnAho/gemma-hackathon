@@ -15,6 +15,7 @@ namespace SimulationAssessment.Tests
             RunTest("accepts_labeled_summary_response", TestAcceptsLabeledSummaryResponse, failures);
             RunTest("accepts_json_narrative_response", TestAcceptsJsonNarrativeResponse, failures);
             RunTest("falls_back_when_bridge_response_fails", TestFallsBackWhenBridgeResponseFails, failures);
+            RunTest("template_recommendations_use_shared_deficit_catalog", TestTemplateRecommendationsUseSharedDeficitCatalog, failures);
 
             if (failures.Count > 0)
             {
@@ -125,6 +126,46 @@ namespace SimulationAssessment.Tests
             AssertEqual("template", narrative.Provider, "Fallback should use deterministic template provider.");
             AssertEqual(baseline.Summary, narrative.Summary, "Fallback should preserve deterministic summary.");
             AssertContains(narrative.Error, "synthetic bridge failure", "Fallback error should include bridge failure details.");
+        }
+
+        private static void TestTemplateRecommendationsUseSharedDeficitCatalog()
+        {
+            var request = BuildRequest();
+            request.Assessment.Result.CriticalFailures.Clear();
+            request.Assessment.Result.Deficits.Clear();
+            request.Assessment.Result.Deficits.Add(new DeficitRecord
+            {
+                Id = SvrFireDeficitCatalog.AlarmAcknowledgementMissingId,
+                MetricId = "alarm_recognition",
+                Severity = "high",
+                Summary = "Alarm acknowledgement was not recorded."
+            });
+            request.Assessment.Result.Deficits.Add(new DeficitRecord
+            {
+                Id = SvrFireScenarioValues.CriticalIgnoredAlarm,
+                MetricId = "alarm_recognition",
+                Severity = "critical",
+                Summary = "Alarm acknowledgement exceeded the failure window."
+            });
+            request.Assessment.Result.Deficits.Add(new DeficitRecord
+            {
+                Id = "custom_gap",
+                MetricId = "custom_metric",
+                Severity = "medium",
+                Summary = "Custom summary."
+            });
+
+            var narrative = new TemplateAssessmentNarrativeComposer().Compose(request);
+
+            AssertEqual(2, narrative.Recommendations.Count, "Equivalent catalog recommendations should be deduplicated.");
+            AssertEqual(
+                "Acknowledge the alarm immediately so the evacuation protocol starts from a recorded alarm response.",
+                narrative.Recommendations[0],
+                "Known deficit IDs should use the shared recommendation catalog.");
+            AssertEqual(
+                "Address the recorded deficit: Custom summary.",
+                narrative.Recommendations[1],
+                "Unknown deficit IDs should fall back to their deterministic summary.");
         }
 
         private static AssessmentNarrativeComposeRequest BuildRequest()
